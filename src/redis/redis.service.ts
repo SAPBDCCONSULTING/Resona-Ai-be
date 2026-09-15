@@ -21,13 +21,27 @@ export class RedisService implements OnModuleDestroy {
 
   async ping(): Promise<boolean> {
     try {
-      if (this.client.status !== 'ready') {
-        await this.client.connect();
-      }
+      await this.ensureConnected();
       const result = await this.client.ping();
       return result === 'PONG';
     } catch {
       return false;
+    }
+  }
+
+  /** Increment key and set TTL on first hit. Used by rate-limit stub. */
+  async incrWithTtl(key: string, ttlSeconds: number): Promise<number> {
+    await this.ensureConnected();
+    const count = await this.client.incr(key);
+    if (count === 1) {
+      await this.client.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
+  private async ensureConnected() {
+    if (this.client.status !== 'ready') {
+      await this.client.connect();
     }
   }
 

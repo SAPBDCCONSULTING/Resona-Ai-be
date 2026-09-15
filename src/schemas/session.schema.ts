@@ -147,6 +147,15 @@ export class Campaign {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy!: Types.ObjectId;
 
+  @Prop({ required: true, default: '' })
+  createdByName!: string;
+
+  @Prop({ type: String, default: null })
+  cadence!: string | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'SessionTemplate', default: null })
+  sessionTemplateId!: Types.ObjectId | null;
+
   @Prop({ default: 0 })
   sessionsCompleted!: number;
 

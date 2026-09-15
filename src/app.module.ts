@@ -1,14 +1,17 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
+import { RateLimitMiddleware } from './redis/rate-limit.middleware';
 import { AuthModule } from './auth/auth.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { SeedModule } from './seed/seed.module';
 import { AiModule } from './ai/ai.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { TemplatesModule } from './templates/templates.module';
+import { ResponsesModule } from './responses/responses.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
 
 @Module({
   imports: [
@@ -26,10 +29,17 @@ import { TemplatesModule } from './templates/templates.module';
     HealthModule,
     AuthModule,
     SessionsModule,
+    CampaignsModule,
     AiModule,
     ContactsModule,
     TemplatesModule,
+    ResponsesModule,
     SeedModule,
   ],
+  providers: [RateLimitMiddleware],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RateLimitMiddleware).forRoutes('{*path}');
+  }
+}
