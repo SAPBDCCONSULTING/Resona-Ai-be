@@ -5,21 +5,27 @@ Standalone NestJS API. Own git repo — own branches (usually `main`).
 ## Setup
 
 ```bash
-docker compose up -d
-
-cat > .env <<'EOF'
-PORT=4000
-MONGODB_URI=mongodb://127.0.0.1:27017/resona
-REDIS_URL=redis://127.0.0.1:6379
-JWT_ACCESS_SECRET=dev-access-secret-change-me
-JWT_REFRESH_SECRET=dev-refresh-secret-change-me
-CORS_ORIGINS=http://localhost:3000,http://localhost:3001
-EOF
-
-npm install
-npm run dev
+cp .env.example .env
+docker compose up -d --build
+# or infra only + local API:
+# docker compose up -d mongo redis && npm install && npm run dev
 ```
 
 API: http://localhost:4000/api/health
 
-Seed login: `admin@acme.local` / `password123`
+### Seed logins (password `password123`)
+
+| Email | Role | Notes |
+|-------|------|--------|
+| `admin@acme.local` | Admin | Full permissions |
+| `employee@acme.local` | Employee | Employee app |
+| `analyst@acme.local` | Analyst | `sessions:read` only — 403 on write |
+
+### Useful commands
+
+```bash
+npm test                          # unit (incl. RBAC 403)
+k6 run k6/smoke.js                # /health + /sessions smoke
+```
+
+See `docs/ADR-001-tech-stack.md` and workspace `../ROADMAP.md`.

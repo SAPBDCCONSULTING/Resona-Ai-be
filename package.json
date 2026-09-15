@@ -9,7 +9,7 @@
     "build": "npm run build:shared && nest build",
     "dev": "npm run build:shared && nest start --watch",
     "start": "nest start",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest",

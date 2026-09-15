@@ -72,6 +72,28 @@ export class ContactsService {
     return { imported: created.length, items: created };
   }
 
+  async exportCsv(orgId: string): Promise<string> {
+    const docs = await this.contacts
+      .find({ orgId: new Types.ObjectId(orgId) })
+      .sort({ name: 1 })
+      .lean();
+    const escape = (v: string) => {
+      if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+      return v;
+    };
+    const lines = ['name,email,department'];
+    for (const d of docs) {
+      lines.push(
+        [
+          escape(String(d.name ?? '')),
+          escape(String(d.email ?? '')),
+          escape(String(d.department ?? '')),
+        ].join(','),
+      );
+    }
+    return lines.join('\n') + '\n';
+  }
+
   private toContact(d: Record<string, unknown>): ContactDto {
     return {
       id: String(d._id),

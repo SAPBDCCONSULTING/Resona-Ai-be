@@ -212,11 +212,77 @@ export interface Campaign {
   startAt: string | null;
   endAt: string | null;
   createdBy: string;
+  createdByName: string;
+  /** ISO cadence hint for recurring campaigns, e.g. weekly | monthly | quarterly */
+  cadence: string | null;
+  sessionTemplateId: string | null;
   sessionsCompleted: number;
   sessionsTotal: number;
   percent: number;
   health: HealthStatus;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface CampaignListResponse {
+  items: Campaign[];
+  columns: {
+    recurring: Campaign[];
+    linked: Campaign[];
+    independent: Campaign[];
+  };
+}
+
+export interface CreateCampaignInput {
+  title: string;
+  type: CampaignType;
+  cadence?: string | null;
+  sessionTemplateId?: string | null;
+  /** How many child sessions to spawn on create (recurring default 3). */
+  sessionCount?: number;
+  sessionType?: SessionType;
+  startAt?: string | null;
+  endAt?: string | null;
+}
+
+export interface UpdateCampaignInput {
+  title?: string;
+  cadence?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  status?: SessionStatus;
+  sessionTemplateId?: string | null;
+}
+
+export interface LaunchCampaignInput {
+  startAt?: string | null;
+  endAt?: string | null;
+}
+
+export interface CampaignDetail extends Campaign {
+  sessions: FeedbackSession[];
+}
+
+/** Reusable survey / 1:1 outline (topics + goal), distinct from report templates. */
+export interface SessionTemplate {
+  id: string;
+  orgId: string | null;
+  name: string;
+  description: string;
+  sessionType: SessionType;
+  goalPrompt: string | null;
+  topics: SessionTopic[];
+  tone: string | null;
+  createdAt: string;
+}
+
+export interface CreateSessionTemplateInput {
+  name: string;
+  description?: string;
+  sessionType: SessionType;
+  goalPrompt?: string | null;
+  topics?: SessionTopic[];
+  tone?: string | null;
 }
 
 export interface CursorPage<T> {
@@ -312,6 +378,36 @@ export interface SessionJoinInfo {
   topics: SessionTopic[];
   startAt: string | null;
   endAt: string | null;
+  joinPath: string;
+}
+
+export interface ResponseAnswer {
+  topicId: string;
+  text: string;
+}
+
+export interface SessionResponse {
+  id: string;
+  orgId: string;
+  sessionId: string;
+  userId: string;
+  answers: ResponseAnswer[];
+  submittedAt: string;
+}
+
+export interface SubmitSessionResponseInput {
+  answers: ResponseAnswer[];
+}
+
+/** Employee “My sessions” row. */
+export interface EmployeeAssignment {
+  id: string;
+  title: string;
+  type: SessionType;
+  status: SessionStatus;
+  endAt: string | null;
+  topicsCount: number;
+  completedByMe: boolean;
   joinPath: string;
 }
 

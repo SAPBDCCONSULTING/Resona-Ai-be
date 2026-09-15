@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { IsString } from 'class-validator';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
 import { ContactsService } from './contacts.service';
@@ -23,6 +23,18 @@ export class ContactsController {
     @Query('groupId') groupId?: string,
   ) {
     return this.contacts.listContacts(req.user.orgId, search, groupId);
+  }
+
+  @Get('contacts/export')
+  @RequirePermissions('contacts:read')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="contacts.csv"')
+  async exportCsv(
+    @Req() req: Request & { user: { orgId: string } },
+    @Res() res: Response,
+  ) {
+    const csv = await this.contacts.exportCsv(req.user.orgId);
+    res.send(csv);
   }
 
   @Get('groups')

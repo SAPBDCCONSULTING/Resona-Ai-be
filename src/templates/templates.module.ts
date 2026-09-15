@@ -4,6 +4,10 @@ import {
   ReportTemplate,
   ReportTemplateSchema,
 } from '../schemas/report-template.schema';
+import {
+  SessionTemplate,
+  SessionTemplateSchema,
+} from '../schemas/session-template.schema';
 import { TemplatesController } from './templates.controller';
 import { TemplatesService } from './templates.service';
 
@@ -11,6 +15,7 @@ import { TemplatesService } from './templates.service';
   imports: [
     MongooseModule.forFeature([
       { name: ReportTemplate.name, schema: ReportTemplateSchema },
+      { name: SessionTemplate.name, schema: SessionTemplateSchema },
     ]),
   ],
   controllers: [TemplatesController],
