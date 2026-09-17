@@ -65,6 +65,29 @@ const ANALYST_PERMS: PermissionKey[] = [
 
 const EMPLOYEE_PERMS: PermissionKey[] = ['sessions:read', 'responses:write'];
 
+const ACME_PROFILE = {
+  address: '1710 Greenwood Road, Pleasanton CA 94566',
+  country: 'United States',
+  description:
+    'Acme Corp uses Resona AI to run AI-assisted employee feedback — 1:1s, focus groups, and surveys that help leaders listen, learn, and act.',
+  website: 'www.acme.example',
+  domain: 'hello@acme.local',
+  phone: '+1 925-640-6315',
+  timezone: 'Los Angeles (PDT)',
+  foundedYear: '2025',
+  logoUrl: null as string | null,
+  accentColor: '#2f5d4a',
+  accentSoft: '#d9ebe2',
+  tagline: 'Listen · Learn · Act',
+  aiSystemPrompt:
+    'Stay professional. Do not ask about protected health details or personal finances.',
+  blockedTopics: ['salary negotiations', 'medical diagnoses'],
+  piiRedactionEnabled: true,
+  retentionDays: 365,
+  archiveAfterDays: 90,
+  softDeleteEnabled: true,
+};
+
 @Injectable()
 export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
@@ -89,6 +112,33 @@ export class SeedService implements OnModuleInit {
 
     const existing = await this.orgs.findOne({ slug: 'acme' });
     if (existing) {
+      await this.orgs.updateOne(
+        { _id: existing._id },
+        {
+          $set: {
+            name: existing.name || 'Acme Corp',
+            address: existing.address ?? ACME_PROFILE.address,
+            country: existing.country ?? ACME_PROFILE.country,
+            description: existing.description ?? ACME_PROFILE.description,
+            website: existing.website ?? ACME_PROFILE.website,
+            domain: existing.domain ?? ACME_PROFILE.domain,
+            phone: existing.phone ?? ACME_PROFILE.phone,
+            timezone: existing.timezone ?? ACME_PROFILE.timezone,
+            foundedYear: existing.foundedYear ?? ACME_PROFILE.foundedYear,
+            logoUrl: existing.logoUrl ?? ACME_PROFILE.logoUrl,
+            accentColor: existing.accentColor ?? ACME_PROFILE.accentColor,
+            accentSoft: existing.accentSoft ?? ACME_PROFILE.accentSoft,
+            tagline: existing.tagline ?? ACME_PROFILE.tagline,
+            aiSystemPrompt: existing.aiSystemPrompt ?? ACME_PROFILE.aiSystemPrompt,
+            blockedTopics:
+              existing.blockedTopics?.length ? existing.blockedTopics : ACME_PROFILE.blockedTopics,
+            piiRedactionEnabled: existing.piiRedactionEnabled ?? ACME_PROFILE.piiRedactionEnabled,
+            retentionDays: existing.retentionDays ?? ACME_PROFILE.retentionDays,
+            archiveAfterDays: existing.archiveAfterDays ?? ACME_PROFILE.archiveAfterDays,
+            softDeleteEnabled: existing.softDeleteEnabled ?? ACME_PROFILE.softDeleteEnabled,
+          },
+        },
+      );
       await this.sessions.updateMany(
         { createdByName: { $in: [null, ''] } },
         { $set: { createdByName: 'Acme Admin' } },
@@ -97,11 +147,11 @@ export class SeedService implements OnModuleInit {
       await this.ensureDemoUsers(existing._id as Types.ObjectId);
       await this.ensureEmployeeAssignments(existing._id as Types.ObjectId);
       await this.ensureDemoCampaign(existing._id as Types.ObjectId);
-      this.logger.log('Seed skipped org create — ensured contacts/templates/users/campaigns');
+      this.logger.log('Seed skipped org create — ensured contacts/templates/users/campaigns/profile');
       return;
     }
 
-    const org = await this.orgs.create({ name: 'Acme Corp', slug: 'acme' });
+    const org = await this.orgs.create({ name: 'Acme Corp', slug: 'acme', ...ACME_PROFILE });
     const adminRole = await this.roles.create({
       orgId: org._id,
       name: 'Admin',
