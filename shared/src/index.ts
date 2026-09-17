@@ -105,7 +105,47 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  address: string | null;
+  country: string | null;
+  description: string | null;
+  website: string | null;
+  domain: string | null;
+  phone: string | null;
+  timezone: string | null;
+  foundedYear: string | null;
+  logoUrl: string | null;
+  accentColor: string | null;
+  accentSoft: string | null;
+  tagline: string | null;
+  aiSystemPrompt: string | null;
+  blockedTopics: string[];
+  piiRedactionEnabled: boolean;
+  retentionDays: number;
+  archiveAfterDays: number;
+  softDeleteEnabled: boolean;
   createdAt: string;
+}
+
+export interface UpdateOrganizationInput {
+  name?: string;
+  address?: string | null;
+  country?: string | null;
+  description?: string | null;
+  website?: string | null;
+  domain?: string | null;
+  phone?: string | null;
+  timezone?: string | null;
+  foundedYear?: string | null;
+  logoUrl?: string | null;
+  accentColor?: string | null;
+  accentSoft?: string | null;
+  tagline?: string | null;
+  aiSystemPrompt?: string | null;
+  blockedTopics?: string[];
+  piiRedactionEnabled?: boolean;
+  retentionDays?: number;
+  archiveAfterDays?: number;
+  softDeleteEnabled?: boolean;
 }
 
 export interface User {
@@ -116,6 +156,15 @@ export interface User {
   roleId: string;
   locale: string;
   createdAt: string;
+}
+
+/** Settings User Management row — includes role label. */
+export interface OrgUser extends User {
+  roleName: string;
+}
+
+export interface AssignUserRoleInput {
+  roleId: string;
 }
 
 export interface Role {
@@ -368,6 +417,40 @@ export interface GenerateTopicsInput {
 export interface GenerateTopicsResult {
   topics: SessionTopic[];
   source: 'heuristic' | 'openai';
+}
+
+export interface SessionChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface SessionChatDraft {
+  title?: string | null;
+  goalPrompt?: string | null;
+  tone?: string | null;
+  teamSize?: string | null;
+}
+
+export interface SessionChatTurnInput {
+  type: SessionType;
+  messages: SessionChatMessage[];
+  title?: string | null;
+}
+
+export interface SessionChatTurnResult {
+  assistantMessage: string;
+  draft: SessionChatDraft;
+  readyToGenerate: boolean;
+}
+
+export interface AssistantChatTurnInput {
+  messages: SessionChatMessage[];
+  pageHint?: string | null;
+}
+
+export interface AssistantChatTurnResult {
+  assistantMessage: string;
+  source: 'openai' | 'heuristic';
 }
 
 export interface SessionJoinInfo {

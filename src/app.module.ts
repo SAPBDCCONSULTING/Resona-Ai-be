@@ -12,6 +12,9 @@ import { ContactsModule } from './contacts/contacts.module';
 import { TemplatesModule } from './templates/templates.module';
 import { ResponsesModule } from './responses/responses.module';
 import { CampaignsModule } from './campaigns/campaigns.module';
+import { RolesModule } from './roles/roles.module';
+import { OrgModule } from './org/org.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -34,6 +37,9 @@ import { CampaignsModule } from './campaigns/campaigns.module';
     ContactsModule,
     TemplatesModule,
     ResponsesModule,
+    RolesModule,
+    OrgModule,
+    UsersModule,
     SeedModule,
   ],
   providers: [RateLimitMiddleware],
