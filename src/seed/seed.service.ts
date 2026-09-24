@@ -148,10 +148,10 @@ export class SeedService implements OnModuleInit {
         { createdByName: { $in: [null, '', 'Acme Admin'] } },
         { $set: { createdByName: 'Resona Admin' } },
       );
-      await this.ensureOrgDirectory(String(existing._id));
-      await this.ensureDemoUsers(existing._id as Types.ObjectId);
-      await this.ensureEmployeeAssignments(existing._id as Types.ObjectId);
-      await this.ensureDemoCampaign(existing._id as Types.ObjectId);
+      await this.ensureOrgDirectory(String(orgId));
+      await this.ensureDemoUsers(orgId);
+      await this.ensureEmployeeAssignments(orgId);
+      await this.ensureDemoCampaign(orgId);
       this.logger.log('Seed skipped org create — ensured contacts/templates/users/campaigns/profile');
       return;
     }
@@ -259,6 +259,53 @@ export class SeedService implements OnModuleInit {
       { orgId, email: /@acme\.local$/ },
       [{ $set: { email: { $replaceAll: { input: '$email', find: '@acme.local', replacement: '@resonaai.local' } } } }],
     );
+  }
+
+  /** Rename legacy @acme.local demo accounts to @resonaai.local (idempotent). */
+  private async migrateAcmeToResonaai(orgId: Types.ObjectId) {
+    const renames: Array<{ from: string; to: string; name: string }> = [
+      { from: 'admin@acme.local', to: 'admin@resonaai.local', name: 'Resona Admin' },
+      { from: 'employee@acme.local', to: 'employee@resonaai.local', name: 'Resona Employee' },
+      { from: 'analyst@acme.local', to: 'analyst@resonaai.local', name: 'Resona Analyst' },
+    ];
+    for (const { from, to, name } of renames) {
+      // email is globally unique — don't scope by orgId
+      const legacy = await this.users.findOne({ email: from });
+      if (!legacy) continue;
+
+      const already = await this.users.findOne({ email: to });
+      if (already) {
+        await this.users.deleteOne({ _id: legacy._id });
+        this.logger.log(`Seed migrate: removed leftover ${from} (kept ${to})`);
+        continue;
+      }
+
+      await this.users.updateOne(
+        { _id: legacy._id },
+        { $set: { email: to, name, orgId } },
+      );
+    }
+    await this.users.updateOne(
+      { email: 'admin@resonaai.local', name: { $in: ['Acme Admin', ''] } },
+      { $set: { name: 'Resona Admin' } },
+    );
+
+    const legacyContacts = await this.contacts.find({ email: /@acme\.local$/i }).lean();
+    for (const c of legacyContacts) {
+      const nextEmail = String(c.email).toLowerCase().replace(/@acme\.local$/i, '@resonaai.local');
+      const clash = await this.contacts.findOne({
+        orgId: c.orgId ?? orgId,
+        email: nextEmail,
+      });
+      if (clash) {
+        await this.contacts.deleteOne({ _id: c._id });
+        continue;
+      }
+      await this.contacts.updateOne(
+        { _id: c._id },
+        { $set: { email: nextEmail, orgId } },
+      );
+    }
   }
 
   private async ensureDemoUsers(orgId: Types.ObjectId, passwordHash?: string) {
