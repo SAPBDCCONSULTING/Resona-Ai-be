@@ -15,7 +15,7 @@ export const options = {
 export function setup() {
   const login = http.post(
     `${BASE}/api/auth/login`,
-    JSON.stringify({ email: 'admin@acme.local', password: 'password123' }),
+    JSON.stringify({ email: 'admin@resonaai.local', password: 'password123' }),
     { headers: { 'Content-Type': 'application/json' } },
   );
   check(login, { 'login 200': (r) => r.status === 200 });

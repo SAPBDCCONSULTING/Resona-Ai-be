@@ -65,13 +65,13 @@ const ANALYST_PERMS: PermissionKey[] = [
 
 const EMPLOYEE_PERMS: PermissionKey[] = ['sessions:read', 'responses:write'];
 
-const ACME_PROFILE = {
+const RESONAAI_PROFILE = {
   address: '1710 Greenwood Road, Pleasanton CA 94566',
   country: 'United States',
   description:
-    'Acme Corp uses Resona AI to run AI-assisted employee feedback — 1:1s, focus groups, and surveys that help leaders listen, learn, and act.',
-  website: 'www.acme.example',
-  domain: 'hello@acme.local',
+    'Resona AI runs AI-assisted employee feedback — 1:1s, focus groups, and surveys that help leaders listen, learn, and act.',
+  website: 'www.resonaai.example',
+  domain: 'hello@resonaai.local',
   phone: '+1 925-640-6315',
   timezone: 'Los Angeles (PDT)',
   foundedYear: '2025',
@@ -110,38 +110,43 @@ export class SeedService implements OnModuleInit {
     await this.ensureSystemTemplates();
     await this.ensureSessionOutlineTemplates();
 
-    const existing = await this.orgs.findOne({ slug: 'acme' });
+    const existing = await this.orgs.findOne({ slug: { $in: ['acme', 'resonaai'] } });
     if (existing) {
+      await this.migrateAcmeToResonaai(existing._id as Types.ObjectId);
       await this.orgs.updateOne(
         { _id: existing._id },
         {
           $set: {
-            name: existing.name || 'Acme Corp',
-            address: existing.address ?? ACME_PROFILE.address,
-            country: existing.country ?? ACME_PROFILE.country,
-            description: existing.description ?? ACME_PROFILE.description,
-            website: existing.website ?? ACME_PROFILE.website,
-            domain: existing.domain ?? ACME_PROFILE.domain,
-            phone: existing.phone ?? ACME_PROFILE.phone,
-            timezone: existing.timezone ?? ACME_PROFILE.timezone,
-            foundedYear: existing.foundedYear ?? ACME_PROFILE.foundedYear,
-            logoUrl: existing.logoUrl ?? ACME_PROFILE.logoUrl,
-            accentColor: existing.accentColor ?? ACME_PROFILE.accentColor,
-            accentSoft: existing.accentSoft ?? ACME_PROFILE.accentSoft,
-            tagline: existing.tagline ?? ACME_PROFILE.tagline,
-            aiSystemPrompt: existing.aiSystemPrompt ?? ACME_PROFILE.aiSystemPrompt,
+            name: 'Resona AI',
+            slug: 'resonaai',
+            address: existing.address ?? RESONAAI_PROFILE.address,
+            country: existing.country ?? RESONAAI_PROFILE.country,
+            description: RESONAAI_PROFILE.description,
+            website: RESONAAI_PROFILE.website,
+            domain: RESONAAI_PROFILE.domain,
+            phone: existing.phone ?? RESONAAI_PROFILE.phone,
+            timezone: existing.timezone ?? RESONAAI_PROFILE.timezone,
+            foundedYear: existing.foundedYear ?? RESONAAI_PROFILE.foundedYear,
+            logoUrl: existing.logoUrl ?? RESONAAI_PROFILE.logoUrl,
+            accentColor: existing.accentColor ?? RESONAAI_PROFILE.accentColor,
+            accentSoft: existing.accentSoft ?? RESONAAI_PROFILE.accentSoft,
+            tagline: existing.tagline ?? RESONAAI_PROFILE.tagline,
+            aiSystemPrompt: existing.aiSystemPrompt ?? RESONAAI_PROFILE.aiSystemPrompt,
             blockedTopics:
-              existing.blockedTopics?.length ? existing.blockedTopics : ACME_PROFILE.blockedTopics,
-            piiRedactionEnabled: existing.piiRedactionEnabled ?? ACME_PROFILE.piiRedactionEnabled,
-            retentionDays: existing.retentionDays ?? ACME_PROFILE.retentionDays,
-            archiveAfterDays: existing.archiveAfterDays ?? ACME_PROFILE.archiveAfterDays,
-            softDeleteEnabled: existing.softDeleteEnabled ?? ACME_PROFILE.softDeleteEnabled,
+              existing.blockedTopics?.length
+                ? existing.blockedTopics
+                : RESONAAI_PROFILE.blockedTopics,
+            piiRedactionEnabled:
+              existing.piiRedactionEnabled ?? RESONAAI_PROFILE.piiRedactionEnabled,
+            retentionDays: existing.retentionDays ?? RESONAAI_PROFILE.retentionDays,
+            archiveAfterDays: existing.archiveAfterDays ?? RESONAAI_PROFILE.archiveAfterDays,
+            softDeleteEnabled: existing.softDeleteEnabled ?? RESONAAI_PROFILE.softDeleteEnabled,
           },
         },
       );
       await this.sessions.updateMany(
-        { createdByName: { $in: [null, ''] } },
-        { $set: { createdByName: 'Acme Admin' } },
+        { createdByName: { $in: [null, '', 'Acme Admin'] } },
+        { $set: { createdByName: 'Resona Admin' } },
       );
       await this.ensureOrgDirectory(String(existing._id));
       await this.ensureDemoUsers(existing._id as Types.ObjectId);
@@ -151,7 +156,11 @@ export class SeedService implements OnModuleInit {
       return;
     }
 
-    const org = await this.orgs.create({ name: 'Acme Corp', slug: 'acme', ...ACME_PROFILE });
+    const org = await this.orgs.create({
+      name: 'Resona AI',
+      slug: 'resonaai',
+      ...RESONAAI_PROFILE,
+    });
     const adminRole = await this.roles.create({
       orgId: org._id,
       name: 'Admin',
@@ -171,8 +180,8 @@ export class SeedService implements OnModuleInit {
     const passwordHash = await bcrypt.hash('password123', 10);
     const admin = await this.users.create({
       orgId: org._id,
-      email: 'admin@acme.local',
-      name: 'Acme Admin',
+      email: 'admin@resonaai.local',
+      name: 'Resona Admin',
       passwordHash,
       roleId: adminRole._id,
       locale: 'en',
@@ -228,7 +237,27 @@ export class SeedService implements OnModuleInit {
     await this.ensureDemoCampaign(org._id as Types.ObjectId);
 
     this.logger.log(
-      'Seeded Acme org — admin@acme.local / employee@acme.local / analyst@acme.local (password123)',
+      'Seeded Resona AI org — admin@resonaai.local / employee@resonaai.local / analyst@resonaai.local (password123)',
+    );
+  }
+
+  /** Rename legacy @acme.local demo accounts to @resonaai.local. */
+  private async migrateAcmeToResonaai(orgId: Types.ObjectId) {
+    const renames: Array<{ from: string; to: string; name: string }> = [
+      { from: 'admin@acme.local', to: 'admin@resonaai.local', name: 'Resona Admin' },
+      { from: 'employee@acme.local', to: 'employee@resonaai.local', name: 'Resona Employee' },
+      { from: 'analyst@acme.local', to: 'analyst@resonaai.local', name: 'Resona Analyst' },
+    ];
+    for (const { from, to, name } of renames) {
+      await this.users.updateOne({ orgId, email: from }, { $set: { email: to, name } });
+    }
+    await this.users.updateOne(
+      { orgId, email: 'admin@resonaai.local', name: { $in: ['Acme Admin', ''] } },
+      { $set: { name: 'Resona Admin' } },
+    );
+    await this.contacts.updateMany(
+      { orgId, email: /@acme\.local$/ },
+      [{ $set: { email: { $replaceAll: { input: '$email', find: '@acme.local', replacement: '@resonaai.local' } } } }],
     );
   }
 
@@ -252,12 +281,12 @@ export class SeedService implements OnModuleInit {
     );
 
     await this.users.findOneAndUpdate(
-      { email: 'employee@acme.local' },
+      { email: 'employee@resonaai.local' },
       {
         $setOnInsert: {
           orgId,
-          email: 'employee@acme.local',
-          name: 'Acme Employee',
+          email: 'employee@resonaai.local',
+          name: 'Resona Employee',
           passwordHash: hash,
           roleId: employeeRole!._id,
           locale: 'en',
@@ -267,12 +296,12 @@ export class SeedService implements OnModuleInit {
     );
 
     await this.users.findOneAndUpdate(
-      { email: 'analyst@acme.local' },
+      { email: 'analyst@resonaai.local' },
       {
         $setOnInsert: {
           orgId,
-          email: 'analyst@acme.local',
-          name: 'Acme Analyst',
+          email: 'analyst@resonaai.local',
+          name: 'Resona Analyst',
           passwordHash: hash,
           roleId: analystRole!._id,
           locale: 'en',
@@ -284,7 +313,7 @@ export class SeedService implements OnModuleInit {
 
   /** Assign employee user to open sessions so Phase 2 take/submit works. */
   private async ensureEmployeeAssignments(orgId: Types.ObjectId) {
-    const employee = await this.users.findOne({ email: 'employee@acme.local' });
+    const employee = await this.users.findOne({ email: 'employee@resonaai.local' });
     if (!employee) return;
 
     const userId = String(employee._id);
@@ -410,7 +439,7 @@ export class SeedService implements OnModuleInit {
     });
     if (existing) return;
 
-    const admin = await this.users.findOne({ email: 'admin@acme.local' });
+    const admin = await this.users.findOne({ email: 'admin@resonaai.local' });
     if (!admin) return;
 
     const surveyTpl = await this.sessionTemplates.findOne({
@@ -499,7 +528,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Aarav Sharma',
-          email: 'aarav@acme.local',
+          email: 'aarav@resonaai.local',
           department: 'Engineering',
           groupIds: [eng._id],
           contactType: 'employee',
@@ -507,7 +536,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Priya Nair',
-          email: 'priya@acme.local',
+          email: 'priya@resonaai.local',
           department: 'Engineering',
           groupIds: [eng._id],
           contactType: 'employee',
@@ -515,7 +544,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Sam Chen',
-          email: 'sam@acme.local',
+          email: 'sam@resonaai.local',
           department: 'Engineering',
           groupIds: [eng._id],
           contactType: 'employee',
@@ -523,7 +552,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Maya Lopez',
-          email: 'maya@acme.local',
+          email: 'maya@resonaai.local',
           department: 'People Ops',
           groupIds: [people._id],
           contactType: 'employee',
@@ -531,7 +560,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Jordan Lee',
-          email: 'jordan@acme.local',
+          email: 'jordan@resonaai.local',
           department: 'People Ops',
           groupIds: [people._id],
           contactType: 'employee',
