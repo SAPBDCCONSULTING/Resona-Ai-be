@@ -110,48 +110,61 @@ export class SeedService implements OnModuleInit {
     await this.ensureSystemTemplates();
     await this.ensureSessionOutlineTemplates();
 
-    const existing = await this.orgs.findOne({ slug: { $in: ['acme', 'resonaai'] } });
+    // Prefer resonaai; if only legacy acme exists, rename it. Never set slug=resonaai when that slug already exists on another doc.
+    const resonaOrg = await this.orgs.findOne({ slug: 'resonaai' });
+    const acmeOrg = await this.orgs.findOne({ slug: 'acme' });
+    const existing = resonaOrg ?? acmeOrg;
+
     if (existing) {
-      await this.migrateAcmeToResonaai(existing._id as Types.ObjectId);
-      await this.orgs.updateOne(
-        { _id: existing._id },
-        {
-          $set: {
-            name: 'Resona AI',
-            slug: 'resonaai',
-            address: existing.address ?? RESONAAI_PROFILE.address,
-            country: existing.country ?? RESONAAI_PROFILE.country,
-            description: RESONAAI_PROFILE.description,
-            website: RESONAAI_PROFILE.website,
-            domain: RESONAAI_PROFILE.domain,
-            phone: existing.phone ?? RESONAAI_PROFILE.phone,
-            timezone: existing.timezone ?? RESONAAI_PROFILE.timezone,
-            foundedYear: existing.foundedYear ?? RESONAAI_PROFILE.foundedYear,
-            logoUrl: existing.logoUrl ?? RESONAAI_PROFILE.logoUrl,
-            accentColor: existing.accentColor ?? RESONAAI_PROFILE.accentColor,
-            accentSoft: existing.accentSoft ?? RESONAAI_PROFILE.accentSoft,
-            tagline: existing.tagline ?? RESONAAI_PROFILE.tagline,
-            aiSystemPrompt: existing.aiSystemPrompt ?? RESONAAI_PROFILE.aiSystemPrompt,
-            blockedTopics:
-              existing.blockedTopics?.length
-                ? existing.blockedTopics
-                : RESONAAI_PROFILE.blockedTopics,
-            piiRedactionEnabled:
-              existing.piiRedactionEnabled ?? RESONAAI_PROFILE.piiRedactionEnabled,
-            retentionDays: existing.retentionDays ?? RESONAAI_PROFILE.retentionDays,
-            archiveAfterDays: existing.archiveAfterDays ?? RESONAAI_PROFILE.archiveAfterDays,
-            softDeleteEnabled: existing.softDeleteEnabled ?? RESONAAI_PROFILE.softDeleteEnabled,
-          },
-        },
-      );
+      const orgId = existing._id as Types.ObjectId;
+      await this.migrateAcmeToResonaai(orgId);
+
+      const profileSet: Record<string, unknown> = {
+        name: 'Resona AI',
+        address: existing.address ?? RESONAAI_PROFILE.address,
+        country: existing.country ?? RESONAAI_PROFILE.country,
+        description: RESONAAI_PROFILE.description,
+        website: RESONAAI_PROFILE.website,
+        domain: RESONAAI_PROFILE.domain,
+        phone: existing.phone ?? RESONAAI_PROFILE.phone,
+        timezone: existing.timezone ?? RESONAAI_PROFILE.timezone,
+        foundedYear: existing.foundedYear ?? RESONAAI_PROFILE.foundedYear,
+        logoUrl: existing.logoUrl ?? RESONAAI_PROFILE.logoUrl,
+        accentColor: existing.accentColor ?? RESONAAI_PROFILE.accentColor,
+        accentSoft: existing.accentSoft ?? RESONAAI_PROFILE.accentSoft,
+        tagline: existing.tagline ?? RESONAAI_PROFILE.tagline,
+        aiSystemPrompt: existing.aiSystemPrompt ?? RESONAAI_PROFILE.aiSystemPrompt,
+        blockedTopics:
+          existing.blockedTopics?.length
+            ? existing.blockedTopics
+            : RESONAAI_PROFILE.blockedTopics,
+        piiRedactionEnabled:
+          existing.piiRedactionEnabled ?? RESONAAI_PROFILE.piiRedactionEnabled,
+        retentionDays: existing.retentionDays ?? RESONAAI_PROFILE.retentionDays,
+        archiveAfterDays: existing.archiveAfterDays ?? RESONAAI_PROFILE.archiveAfterDays,
+        softDeleteEnabled: existing.softDeleteEnabled ?? RESONAAI_PROFILE.softDeleteEnabled,
+      };
+      // Only rename acme → resonaai when no resonaai org already exists
+      if (!resonaOrg && acmeOrg && String(existing._id) === String(acmeOrg._id)) {
+        profileSet.slug = 'resonaai';
+      }
+
+      await this.orgs.updateOne({ _id: orgId }, { $set: profileSet });
+
+      if (resonaOrg && acmeOrg) {
+        this.logger.warn(
+          'Seed: both acme + resonaai orgs present — using resonaai; leave/delete leftover acme org manually if unused',
+        );
+      }
+
       await this.sessions.updateMany(
         { createdByName: { $in: [null, '', 'Acme Admin'] } },
         { $set: { createdByName: 'Resona Admin' } },
       );
-      await this.ensureOrgDirectory(String(existing._id));
-      await this.ensureDemoUsers(existing._id as Types.ObjectId);
-      await this.ensureEmployeeAssignments(existing._id as Types.ObjectId);
-      await this.ensureDemoCampaign(existing._id as Types.ObjectId);
+      await this.ensureOrgDirectory(String(orgId));
+      await this.ensureDemoUsers(orgId);
+      await this.ensureEmployeeAssignments(orgId);
+      await this.ensureDemoCampaign(orgId);
       this.logger.log('Seed skipped org create — ensured contacts/templates/users/campaigns/profile');
       return;
     }
@@ -241,7 +254,7 @@ export class SeedService implements OnModuleInit {
     );
   }
 
-  /** Rename legacy @acme.local demo accounts to @resonaai.local. */
+  /** Rename legacy @acme.local demo accounts to @resonaai.local (idempotent). */
   private async migrateAcmeToResonaai(orgId: Types.ObjectId) {
     const renames: Array<{ from: string; to: string; name: string }> = [
       { from: 'admin@acme.local', to: 'admin@resonaai.local', name: 'Resona Admin' },
@@ -249,16 +262,43 @@ export class SeedService implements OnModuleInit {
       { from: 'analyst@acme.local', to: 'analyst@resonaai.local', name: 'Resona Analyst' },
     ];
     for (const { from, to, name } of renames) {
-      await this.users.updateOne({ orgId, email: from }, { $set: { email: to, name } });
+      // email is globally unique — don't scope by orgId
+      const legacy = await this.users.findOne({ email: from });
+      if (!legacy) continue;
+
+      const already = await this.users.findOne({ email: to });
+      if (already) {
+        await this.users.deleteOne({ _id: legacy._id });
+        this.logger.log(`Seed migrate: removed leftover ${from} (kept ${to})`);
+        continue;
+      }
+
+      await this.users.updateOne(
+        { _id: legacy._id },
+        { $set: { email: to, name, orgId } },
+      );
     }
     await this.users.updateOne(
-      { orgId, email: 'admin@resonaai.local', name: { $in: ['Acme Admin', ''] } },
+      { email: 'admin@resonaai.local', name: { $in: ['Acme Admin', ''] } },
       { $set: { name: 'Resona Admin' } },
     );
-    await this.contacts.updateMany(
-      { orgId, email: /@acme\.local$/ },
-      [{ $set: { email: { $replaceAll: { input: '$email', find: '@acme.local', replacement: '@resonaai.local' } } } }],
-    );
+
+    const legacyContacts = await this.contacts.find({ email: /@acme\.local$/i }).lean();
+    for (const c of legacyContacts) {
+      const nextEmail = String(c.email).toLowerCase().replace(/@acme\.local$/i, '@resonaai.local');
+      const clash = await this.contacts.findOne({
+        orgId: c.orgId ?? orgId,
+        email: nextEmail,
+      });
+      if (clash) {
+        await this.contacts.deleteOne({ _id: c._id });
+        continue;
+      }
+      await this.contacts.updateOne(
+        { _id: c._id },
+        { $set: { email: nextEmail, orgId } },
+      );
+    }
   }
 
   private async ensureDemoUsers(orgId: Types.ObjectId, passwordHash?: string) {
