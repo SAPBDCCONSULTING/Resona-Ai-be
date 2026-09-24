@@ -25,7 +25,7 @@ import { UsersModule } from './users/users.module';
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGODB_URI', 'mongodb://127.0.0.1:27017/pulsefeedback'),
+        uri: config.get<string>('MONGODB_URI', 'mongodb://127.0.0.1:27017/resona'),
       }),
     }),
     RedisModule,
