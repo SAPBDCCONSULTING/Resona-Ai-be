@@ -16,6 +16,7 @@ import {
   type SessionJoinInfo,
   type SessionListResponse,
   type SessionSortBy,
+  type SessionStatus,
   type SessionType,
   type WizardStep,
 } from '@pulsefeedback/shared';
@@ -157,10 +158,13 @@ export class SessionsService {
       existing.endAt ??
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    const status: SessionStatus =
+      new Date(startAt).getTime() <= Date.now() ? 'ongoing' : 'scheduled';
+
     const session = await this.updateDraft(orgId, id, {
       startAt,
       endAt,
-      status: 'ongoing',
+      status,
       wizardStep: 'schedule',
     });
 
