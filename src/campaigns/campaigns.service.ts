@@ -344,6 +344,9 @@ export class CampaignsService {
       participantIds: Array.isArray(d.participantIds)
         ? (d.participantIds as string[])
         : [],
+      assignedUserIds: Array.isArray(d.assignedUserIds)
+        ? (d.assignedUserIds as string[])
+        : [],
       participantTitle: (d.participantTitle as string | null) ?? null,
       participantDescription: (d.participantDescription as string | null) ?? null,
       welcomeMessage: (d.welcomeMessage as string | null) ?? null,

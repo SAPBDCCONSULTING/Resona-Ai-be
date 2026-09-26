@@ -21,6 +21,7 @@ import {
   type WizardStep,
 } from '@pulsefeedback/shared';
 import { Session, SessionDocument } from '../schemas/session.schema';
+import { ContactsService } from '../contacts/contacts.service';
 import { CreateDraftDto, UpdateDraftDto } from './dto/session-draft.dto';
 
 export type ListSessionsInput = {
@@ -43,6 +44,7 @@ export class SessionsService {
   constructor(
     @InjectModel(Session.name) private readonly sessions: Model<SessionDocument>,
     private readonly config: ConfigService,
+    private readonly contactsService: ContactsService,
   ) {}
 
   async list(input: ListSessionsInput): Promise<SessionListResponse> {
@@ -108,6 +110,7 @@ export class SessionsService {
       tone: null,
       reportTemplateId: null,
       participantIds: [],
+      assignedUserIds: [],
       participantTitle: null,
       participantDescription: null,
       welcomeMessage: null,
@@ -194,6 +197,23 @@ export class SessionsService {
       status,
       wizardStep: 'schedule',
     });
+
+    // Resolve selected Contacts to their linked User accounts for employee-assignment
+    // matching. participantIds stays Contact ids (S4 draft/resume depends on that);
+    // assignedUserIds is the separate, resolved field responses/assignments key on.
+    // Contacts with no linked User account (userId === null) are skipped for now —
+    // account creation/invitation is a future task, not handled here.
+    const contacts = await this.contactsService.findByIds(orgId, existing.participantIds);
+    const userIdByContactId = new Map(contacts.map((c) => [c.id, c.userId]));
+    const assignedUserIds = existing.participantIds
+      .map((contactId) => userIdByContactId.get(contactId) ?? null)
+      .filter((userId): userId is string => userId !== null);
+
+    await this.sessions.updateOne(
+      { _id: id, orgId: new Types.ObjectId(orgId) },
+      { $set: { assignedUserIds } },
+    );
+    session.assignedUserIds = assignedUserIds;
 
     const joinPath = sessionJoinPath(session);
     const employeeBase = this.config.get<string>(
@@ -303,6 +323,9 @@ export class SessionsService {
       reportTemplateId: (d.reportTemplateId as string | null) ?? null,
       participantIds: Array.isArray(d.participantIds)
         ? (d.participantIds as string[])
+        : [],
+      assignedUserIds: Array.isArray(d.assignedUserIds)
+        ? (d.assignedUserIds as string[])
         : [],
       participantTitle: (d.participantTitle as string | null) ?? null,
       participantDescription: (d.participantDescription as string | null) ?? null,

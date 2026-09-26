@@ -32,7 +32,7 @@ export class ResponsesService {
         orgId: new Types.ObjectId(orgId),
         status: 'scheduled',
         startAt: { $lte: new Date() },
-        participantIds: userId,
+        assignedUserIds: userId,
       },
       { $set: { status: 'ongoing' } },
     );
@@ -41,7 +41,7 @@ export class ResponsesService {
       .find({
         orgId: new Types.ObjectId(orgId),
         status: { $in: ['ongoing', 'scheduled'] },
-        participantIds: userId,
+        assignedUserIds: userId,
       })
       .sort({ endAt: 1 })
       .lean();
@@ -99,7 +99,7 @@ export class ResponsesService {
       );
     }
 
-    if (!activated.participantIds.includes(actor.userId)) {
+    if (!activated.assignedUserIds.includes(actor.userId)) {
       throw new ForbiddenException('You are not assigned to this session');
     }
 

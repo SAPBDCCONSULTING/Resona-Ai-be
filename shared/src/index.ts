@@ -216,6 +216,11 @@ export interface FeedbackSession {
   tone: string | null;
   reportTemplateId: string | null;
   participantIds: string[];
+  /**
+   * Resolved User ids for participantIds, computed at launch (Contacts with no linked
+   * User account are skipped). Employee-assignment queries key on this, not participantIds.
+   */
+  assignedUserIds: string[];
   /** Employee-facing title (Verify step). */
   participantTitle: string | null;
   /** Employee-facing description / invite framing. */
@@ -407,6 +412,8 @@ export interface Contact {
   department: string | null;
   groupIds: string[];
   contactType: 'employee' | 'external';
+  /** Linked login account, when one exists. Null until an account is created (future task). */
+  userId: string | null;
   createdAt: string;
 }
 
