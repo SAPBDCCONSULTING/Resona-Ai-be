@@ -211,9 +211,10 @@ export class SessionsService {
 
     await this.sessions.updateOne(
       { _id: id, orgId: new Types.ObjectId(orgId) },
-      { $set: { assignedUserIds } },
+      { $set: { assignedUserIds, 'progress.invited': assignedUserIds.length } },
     );
     session.assignedUserIds = assignedUserIds;
+    session.progress = { ...session.progress, invited: assignedUserIds.length };
 
     const joinPath = sessionJoinPath(session);
     const employeeBase = this.config.get<string>(

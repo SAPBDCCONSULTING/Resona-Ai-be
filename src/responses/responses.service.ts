@@ -111,16 +111,26 @@ export class ResponsesService {
       throw new ConflictException('You already submitted a response for this session');
     }
 
-    const created = await this.responses.create({
-      orgId: new Types.ObjectId(actor.orgId),
-      sessionId: new Types.ObjectId(sessionId),
-      userId: new Types.ObjectId(actor.userId),
-      answers: dto.answers.map((a) => ({
-        topicId: a.topicId,
-        text: a.text.trim(),
-      })),
-      submittedAt: new Date(),
-    });
+    let created: ResponseDocument;
+    try {
+      created = await this.responses.create({
+        orgId: new Types.ObjectId(actor.orgId),
+        sessionId: new Types.ObjectId(sessionId),
+        userId: new Types.ObjectId(actor.userId),
+        answers: dto.answers.map((a) => ({
+          topicId: a.topicId,
+          text: a.text.trim(),
+        })),
+        submittedAt: new Date(),
+      });
+    } catch (err) {
+      // Race backstop: two concurrent submits can both pass the findOne check above;
+      // the unique (sessionId, userId) index rejects the second insert with code 11000.
+      if ((err as { code?: number })?.code === 11000) {
+        throw new ConflictException('You already submitted a response for this session');
+      }
+      throw err;
+    }
 
     await this.bumpProgress(sessionId);
 
