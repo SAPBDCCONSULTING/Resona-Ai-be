@@ -344,6 +344,18 @@ export class CampaignsService {
       participantIds: Array.isArray(d.participantIds)
         ? (d.participantIds as string[])
         : [],
+      participantTitle: (d.participantTitle as string | null) ?? null,
+      participantDescription: (d.participantDescription as string | null) ?? null,
+      welcomeMessage: (d.welcomeMessage as string | null) ?? null,
+      anonymous: Boolean(d.anonymous),
+      invitation: {
+        subject: String((d.invitation as { subject?: string } | undefined)?.subject ?? ''),
+        header: String((d.invitation as { header?: string } | undefined)?.header ?? ''),
+        body: String((d.invitation as { body?: string } | undefined)?.body ?? ''),
+      },
+      engagementMetrics: Array.isArray(d.engagementMetrics)
+        ? (d.engagementMetrics as string[])
+        : [],
       createdAt,
       updatedAt,
     };
