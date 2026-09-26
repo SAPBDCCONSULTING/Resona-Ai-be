@@ -188,6 +188,12 @@ export interface SessionTopic {
   order: number;
 }
 
+export interface SessionInvitation {
+  subject: string;
+  header: string;
+  body: string;
+}
+
 export interface FeedbackSession {
   id: string;
   orgId: string;
@@ -210,6 +216,14 @@ export interface FeedbackSession {
   tone: string | null;
   reportTemplateId: string | null;
   participantIds: string[];
+  /** Employee-facing title (Verify step). */
+  participantTitle: string | null;
+  /** Employee-facing description / invite framing. */
+  participantDescription: string | null;
+  welcomeMessage: string | null;
+  anonymous: boolean;
+  invitation: SessionInvitation;
+  engagementMetrics: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -234,6 +248,12 @@ export interface UpdateSessionDraftInput {
   startAt?: string | null;
   endAt?: string | null;
   status?: SessionStatus;
+  participantTitle?: string | null;
+  participantDescription?: string | null;
+  welcomeMessage?: string | null;
+  anonymous?: boolean;
+  invitation?: Partial<SessionInvitation>;
+  engagementMetrics?: string[];
 }
 
 export interface SessionListQuery {
@@ -441,6 +461,8 @@ export interface SessionChatTurnResult {
   assistantMessage: string;
   draft: SessionChatDraft;
   readyToGenerate: boolean;
+  /** Quick-reply chips for the HR Describe coach UI. */
+  suggestions?: string[];
 }
 
 export interface AssistantChatTurnInput {
@@ -462,6 +484,8 @@ export interface SessionJoinInfo {
   startAt: string | null;
   endAt: string | null;
   joinPath: string;
+  /** True when status is ongoing and within the start/end window. */
+  acceptingResponses: boolean;
 }
 
 export interface ResponseAnswer {
@@ -480,6 +504,50 @@ export interface SessionResponse {
 
 export interface SubmitSessionResponseInput {
   answers: ResponseAnswer[];
+}
+
+/** Per-employee 1:1 discussion thread (topic-guided AI chat). */
+export type ConversationStatus = 'available' | 'active' | 'completed' | 'expired';
+
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  topicId?: string | null;
+  createdAt: string;
+}
+
+export interface ConversationTopicSummary {
+  topicId: string;
+  text: string;
+}
+
+export interface SessionConversation {
+  id: string;
+  orgId: string;
+  sessionId: string;
+  userId: string;
+  status: ConversationStatus;
+  currentTopicIndex: number;
+  messages: ConversationMessage[];
+  topicSummaries: ConversationTopicSummary[];
+  responseId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationChatTurnInput {
+  message: string;
+}
+
+export interface ConversationChatTurnResult {
+  conversation: SessionConversation;
+  assistantMessage: string;
+  currentTopicIndex: number;
+  currentTopicTitle: string | null;
+  topicComplete: boolean;
+  agendaComplete: boolean;
+  /** Present when agenda finished and Response was written. */
+  response: SessionResponse | null;
 }
 
 /** Employee “My sessions” row. */

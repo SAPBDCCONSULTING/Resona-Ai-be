@@ -14,6 +14,7 @@ import {
 } from '@pulsefeedback/shared';
 import { Response, ResponseDocument } from '../schemas/response.schema';
 import { Session, SessionDocument } from '../schemas/session.schema';
+import { SessionsService } from '../sessions/sessions.service';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 
 @Injectable()
@@ -21,9 +22,21 @@ export class ResponsesService {
   constructor(
     @InjectModel(Response.name) private readonly responses: Model<ResponseDocument>,
     @InjectModel(Session.name) private readonly sessions: Model<SessionDocument>,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   async listAssignments(userId: string, orgId: string): Promise<EmployeeAssignment[]> {
+    // Soft-activate due scheduled sessions (stand-in for BullMQ start jobs).
+    await this.sessions.updateMany(
+      {
+        orgId: new Types.ObjectId(orgId),
+        status: 'scheduled',
+        startAt: { $lte: new Date() },
+        participantIds: userId,
+      },
+      { $set: { status: 'ongoing' } },
+    );
+
     const sessions = await this.sessions
       .find({
         orgId: new Types.ObjectId(orgId),
@@ -73,19 +86,20 @@ export class ResponsesService {
     actor: { userId: string; orgId: string },
     dto: SubmitResponseDto,
   ): Promise<SessionResponse> {
-    const session = await this.sessions.findById(sessionId).lean();
-    if (!session) throw new NotFoundException('Session not found');
-    if (String(session.orgId) !== actor.orgId) {
+    const activated = await this.sessionsService.softActivateIfDue(sessionId);
+    if (!activated) throw new NotFoundException('Session not found');
+    if (activated.orgId !== actor.orgId) {
       throw new ForbiddenException('Session is in another organization');
     }
-    if (!['ongoing', 'scheduled'].includes(String(session.status))) {
-      throw new BadRequestException('Session is not open for responses');
+    if (!this.sessionsService.acceptingResponses(activated)) {
+      throw new BadRequestException(
+        activated.status === 'scheduled'
+          ? 'Session has not started yet'
+          : 'Session is not open for responses',
+      );
     }
 
-    const participantIds = Array.isArray(session.participantIds)
-      ? (session.participantIds as string[])
-      : [];
-    if (!participantIds.includes(actor.userId)) {
+    if (!activated.participantIds.includes(actor.userId)) {
       throw new ForbiddenException('You are not assigned to this session');
     }
 
