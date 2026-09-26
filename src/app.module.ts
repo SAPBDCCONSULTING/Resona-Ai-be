@@ -15,6 +15,7 @@ import { CampaignsModule } from './campaigns/campaigns.module';
 import { RolesModule } from './roles/roles.module';
 import { OrgModule } from './org/org.module';
 import { UsersModule } from './users/users.module';
+import { ConversationsModule } from './conversations/conversations.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { UsersModule } from './users/users.module';
     ContactsModule,
     TemplatesModule,
     ResponsesModule,
+    ConversationsModule,
     RolesModule,
     OrgModule,
     UsersModule,

@@ -107,6 +107,12 @@ export class SessionsService {
       tone: null,
       reportTemplateId: null,
       participantIds: [],
+      participantTitle: null,
+      participantDescription: null,
+      welcomeMessage: null,
+      anonymous: false,
+      invitation: { subject: '', header: '', body: '' },
+      engagementMetrics: [],
     });
 
     return this.toDto(doc.toObject() as unknown as Record<string, unknown>);
@@ -128,6 +134,18 @@ export class SessionsService {
     if (dto.startAt !== undefined) updates.startAt = dto.startAt ? new Date(dto.startAt) : null;
     if (dto.endAt !== undefined) updates.endAt = dto.endAt ? new Date(dto.endAt) : null;
     if (dto.status !== undefined) updates.status = dto.status;
+    if (dto.participantTitle !== undefined) updates.participantTitle = dto.participantTitle;
+    if (dto.participantDescription !== undefined) {
+      updates.participantDescription = dto.participantDescription;
+    }
+    if (dto.welcomeMessage !== undefined) updates.welcomeMessage = dto.welcomeMessage;
+    if (dto.anonymous !== undefined) updates.anonymous = dto.anonymous;
+    if (dto.engagementMetrics !== undefined) updates.engagementMetrics = dto.engagementMetrics;
+    if (dto.invitation !== undefined) {
+      if (dto.invitation.subject !== undefined) updates['invitation.subject'] = dto.invitation.subject;
+      if (dto.invitation.header !== undefined) updates['invitation.header'] = dto.invitation.header;
+      if (dto.invitation.body !== undefined) updates['invitation.body'] = dto.invitation.body;
+    }
 
     const doc = await this.sessions
       .findOneAndUpdate(
@@ -157,10 +175,22 @@ export class SessionsService {
       existing.endAt ??
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    const startMs = new Date(startAt).getTime();
+    const endMs = new Date(endAt).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+      throw new BadRequestException('Invalid start or end date');
+    }
+    if (endMs <= startMs) {
+      throw new BadRequestException('End must be after start');
+    }
+
+    // Future start → scheduled; now/past → ongoing (BullMQ start jobs come later).
+    const status = startMs > Date.now() ? 'scheduled' : 'ongoing';
+
     const session = await this.updateDraft(orgId, id, {
       startAt,
       endAt,
-      status: 'ongoing',
+      status,
       wizardStep: 'schedule',
     });
 
@@ -176,22 +206,51 @@ export class SessionsService {
     };
   }
 
+  /**
+   * If a scheduled session's startAt has passed, flip to ongoing.
+   * Stand-in for BullMQ *-start until schedulers land.
+   */
+  async softActivateIfDue(id: string): Promise<FeedbackSession | null> {
+    const doc = await this.sessions.findById(id);
+    if (!doc) return null;
+    if (doc.status !== 'scheduled') {
+      return this.toDto(doc.toObject() as unknown as Record<string, unknown>);
+    }
+    const start = doc.startAt instanceof Date ? doc.startAt : null;
+    if (start && start.getTime() <= Date.now()) {
+      doc.status = 'ongoing';
+      await doc.save();
+    }
+    return this.toDto(doc.toObject() as unknown as Record<string, unknown>);
+  }
+
+  acceptingResponses(session: Pick<FeedbackSession, 'status' | 'startAt' | 'endAt'>): boolean {
+    if (session.status !== 'ongoing') return false;
+    const now = Date.now();
+    if (session.endAt && new Date(session.endAt).getTime() < now) return false;
+    if (session.startAt && new Date(session.startAt).getTime() > now) return false;
+    return true;
+  }
+
   async getJoinInfo(id: string): Promise<SessionJoinInfo> {
-    const doc = await this.sessions.findById(id).lean();
-    if (!doc) throw new NotFoundException('Session not found');
-    if (!['ongoing', 'scheduled'].includes(String(doc.status))) {
+    const activated = await this.softActivateIfDue(id);
+    if (!activated) throw new NotFoundException('Session not found');
+    if (!['ongoing', 'scheduled'].includes(activated.status)) {
       throw new BadRequestException('Session is not open for joining');
     }
-    const session = this.toDto(doc);
+    if (activated.endAt && new Date(activated.endAt).getTime() < Date.now()) {
+      throw new BadRequestException('Session has ended');
+    }
     return {
-      id: session.id,
-      title: session.title,
-      type: session.type,
-      status: session.status,
-      topics: session.topics,
-      startAt: session.startAt,
-      endAt: session.endAt,
-      joinPath: sessionJoinPath(session),
+      id: activated.id,
+      title: activated.title,
+      type: activated.type,
+      status: activated.status,
+      topics: activated.topics,
+      startAt: activated.startAt,
+      endAt: activated.endAt,
+      joinPath: sessionJoinPath(activated),
+      acceptingResponses: this.acceptingResponses(activated),
     };
   }
 
@@ -243,6 +302,18 @@ export class SessionsService {
       reportTemplateId: (d.reportTemplateId as string | null) ?? null,
       participantIds: Array.isArray(d.participantIds)
         ? (d.participantIds as string[])
+        : [],
+      participantTitle: (d.participantTitle as string | null) ?? null,
+      participantDescription: (d.participantDescription as string | null) ?? null,
+      welcomeMessage: (d.welcomeMessage as string | null) ?? null,
+      anonymous: Boolean(d.anonymous),
+      invitation: {
+        subject: String((d.invitation as { subject?: string } | undefined)?.subject ?? ''),
+        header: String((d.invitation as { header?: string } | undefined)?.header ?? ''),
+        body: String((d.invitation as { body?: string } | undefined)?.body ?? ''),
+      },
+      engagementMetrics: Array.isArray(d.engagementMetrics)
+        ? (d.engagementMetrics as string[])
         : [],
       createdAt,
       updatedAt,
