@@ -108,6 +108,40 @@ export class Session {
 
   @Prop({ type: [String], default: [] })
   participantIds!: string[];
+
+  /**
+   * Resolved User ids for the currently-selected participantIds, computed at launch.
+   * Contacts with no linked User account are skipped (see Contact.userId).
+   * This is what employee-assignment queries key on — participantIds stays Contact ids.
+   */
+  @Prop({ type: [String], default: [] })
+  assignedUserIds!: string[];
+
+  /** Employee-facing title shown on join / invite. */
+  @Prop({ type: String, default: null })
+  participantTitle!: string | null;
+
+  @Prop({ type: String, default: null })
+  participantDescription!: string | null;
+
+  @Prop({ type: String, default: null })
+  welcomeMessage!: string | null;
+
+  @Prop({ default: false })
+  anonymous!: boolean;
+
+  @Prop({
+    type: {
+      subject: { type: String, default: '' },
+      header: { type: String, default: '' },
+      body: { type: String, default: '' },
+    },
+    default: () => ({ subject: '', header: '', body: '' }),
+  })
+  invitation!: { subject: string; header: string; body: string };
+
+  @Prop({ type: [String], default: [] })
+  engagementMetrics!: string[];
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);

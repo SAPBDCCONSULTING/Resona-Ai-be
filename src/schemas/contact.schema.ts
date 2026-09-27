@@ -27,6 +27,10 @@ export class Contact {
 
   @Prop({ enum: ['employee', 'external'], default: 'employee' })
   contactType!: 'employee' | 'external';
+
+  /** Linked login account, when one exists. Null until an account is created (future task). */
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  userId!: Types.ObjectId | null;
 }
 
 export const ContactSchema = SchemaFactory.createForClass(Contact);

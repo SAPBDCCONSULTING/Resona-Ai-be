@@ -40,6 +40,18 @@ export class ContactsService {
     return { items: docs.map((d) => this.toContact(d)) };
   }
 
+  /** Look up specific contacts by id, scoped to org — used by Sessions to resolve participants. */
+  async findByIds(orgId: string, ids: string[]): Promise<ContactDto[]> {
+    const objectIds = ids
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+    if (!objectIds.length) return [];
+    const docs = await this.contacts
+      .find({ orgId: new Types.ObjectId(orgId), _id: { $in: objectIds } })
+      .lean();
+    return docs.map((d) => this.toContact(d));
+  }
+
   async listGroups(orgId: string) {
     const docs = await this.groups
       .find({ orgId: new Types.ObjectId(orgId) })
@@ -119,6 +131,7 @@ export class ContactsService {
       department: (d.department as string | null) ?? null,
       groupIds: Array.isArray(d.groupIds) ? d.groupIds.map(String) : [],
       contactType: (d.contactType as ContactDto['contactType']) ?? 'employee',
+      userId: d.userId ? String(d.userId) : null,
       createdAt:
         d.createdAt instanceof Date
           ? d.createdAt.toISOString()
