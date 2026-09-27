@@ -18,7 +18,10 @@ export class RateLimitMiddleware implements NestMiddleware {
     try {
       const count = await this.redis.incrWithTtl(`rl:${ip}`, windowSec);
       res.setHeader('X-RateLimit-Limit', String(limit));
-      res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - count)));
+      res.setHeader(
+        'X-RateLimit-Remaining',
+        String(Math.max(0, limit - count)),
+      );
       if (count > limit) {
         res.status(429).json({
           statusCode: 429,

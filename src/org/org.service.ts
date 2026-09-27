@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import type { Organization as OrganizationDto } from '@pulsefeedback/shared';
-import { Organization, OrganizationDocument } from '../schemas/organization.schema';
+import {
+  Organization,
+  OrganizationDocument,
+} from '../schemas/organization.schema';
 import { UpdateOrgDto } from './dto/update-org.dto';
 
 const ORG_PATCH_KEYS = [
@@ -29,7 +32,10 @@ const ORG_PATCH_KEYS = [
 
 @Injectable()
 export class OrgService {
-  constructor(@InjectModel(Organization.name) private readonly orgs: Model<OrganizationDocument>) {}
+  constructor(
+    @InjectModel(Organization.name)
+    private readonly orgs: Model<OrganizationDocument>,
+  ) {}
 
   async get(orgId: string): Promise<OrganizationDto> {
     const doc = await this.orgs.findById(orgId).lean();

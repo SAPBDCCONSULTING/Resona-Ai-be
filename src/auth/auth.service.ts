@@ -37,7 +37,7 @@ export class AuthService {
     }
 
     const role = await this.roles.findById(user.roleId);
-    const permissions = (role?.permissions ?? []) as PermissionKey[];
+    const permissions = role?.permissions ?? [];
     const payload: TokenPayload = {
       sub: user.id,
       orgId: user.orgId.toString(),
@@ -76,7 +76,7 @@ export class AuthService {
     }
 
     const role = await this.roles.findById(user.roleId);
-    const permissions = (role?.permissions ?? []) as PermissionKey[];
+    const permissions = role?.permissions ?? [];
     const next: TokenPayload = {
       sub: user.id,
       orgId: user.orgId.toString(),
@@ -109,7 +109,10 @@ export class AuthService {
 
   private signAccess(payload: TokenPayload) {
     return this.jwt.signAsync(payload, {
-      secret: this.config.get<string>('JWT_ACCESS_SECRET', 'dev-access-secret-change-me'),
+      secret: this.config.get<string>(
+        'JWT_ACCESS_SECRET',
+        'dev-access-secret-change-me',
+      ),
       expiresIn: '8h',
     });
   }
@@ -122,6 +125,9 @@ export class AuthService {
   }
 
   private refreshSecret() {
-    return this.config.get<string>('JWT_REFRESH_SECRET', 'dev-refresh-secret-change-me');
+    return this.config.get<string>(
+      'JWT_REFRESH_SECRET',
+      'dev-refresh-secret-change-me',
+    );
   }
 }

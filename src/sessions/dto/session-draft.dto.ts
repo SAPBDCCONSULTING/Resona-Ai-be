@@ -1,4 +1,11 @@
-import { IsArray, IsEnum, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import type {
   CreateEntryMode,
@@ -27,7 +34,14 @@ export class CreateDraftDto {
   goalPrompt?: string | null;
 
   @IsOptional()
-  @IsEnum(['choose_type', 'describe', 'verify', 'participants', 'reports', 'schedule'])
+  @IsEnum([
+    'choose_type',
+    'describe',
+    'verify',
+    'participants',
+    'reports',
+    'schedule',
+  ])
   wizardStep?: WizardStep;
 }
 
@@ -70,7 +84,14 @@ export class UpdateDraftDto {
   topics?: TopicDto[];
 
   @IsOptional()
-  @IsEnum(['choose_type', 'describe', 'verify', 'participants', 'reports', 'schedule'])
+  @IsEnum([
+    'choose_type',
+    'describe',
+    'verify',
+    'participants',
+    'reports',
+    'schedule',
+  ])
   wizardStep?: WizardStep;
 
   @IsOptional()

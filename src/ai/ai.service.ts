@@ -42,7 +42,9 @@ Do not invent features that are not part of a typical feedback platform.`;
 export class AiService {
   constructor(private readonly config: ConfigService) {}
 
-  async generateTopics(input: GenerateTopicsInput): Promise<GenerateTopicsResult> {
+  async generateTopics(
+    input: GenerateTopicsInput,
+  ): Promise<GenerateTopicsResult> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (apiKey) {
       try {
@@ -55,12 +57,19 @@ export class AiService {
     return { topics: this.heuristicTopics(input), source: 'heuristic' };
   }
 
-  async chatDescribeTurn(input: SessionChatTurnInput): Promise<SessionChatTurnResult> {
+  async chatDescribeTurn(
+    input: SessionChatTurnInput,
+  ): Promise<SessionChatTurnResult> {
     const messages = (input.messages ?? []).slice(-24);
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (apiKey) {
       try {
-        const result = await this.chatFromOpenAi(apiKey, input.type, messages, input.title);
+        const result = await this.chatFromOpenAi(
+          apiKey,
+          input.type,
+          messages,
+          input.title,
+        );
         if (result) return result;
       } catch {
         // fall through to local coach
@@ -87,7 +96,10 @@ export class AiService {
       }
     }
     return {
-      assistantMessage: this.fallbackAssistant(messages, input.pageHint ?? null),
+      assistantMessage: this.fallbackAssistant(
+        messages,
+        input.pageHint ?? null,
+      ),
       source: 'heuristic',
     };
   }
@@ -178,7 +190,9 @@ export class AiService {
       choices?: { message?: { content?: string } }[];
     };
     const raw = data.choices?.[0]?.message?.content ?? '[]';
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim()) as string[];
+    const parsed = JSON.parse(
+      raw.replace(/```json|```/g, '').trim(),
+    ) as string[];
     return parsed.slice(0, 5).map((title, i) => ({
       id: randomUUID(),
       title: String(title),
@@ -261,7 +275,9 @@ export class AiService {
     type: SessionChatTurnInput['type'],
     title?: string | null,
   ): SessionChatTurnResult {
-    const userTurns = messages.filter((m) => m.role === 'user').map((m) => m.content.trim());
+    const userTurns = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content.trim());
     const typeLabel = type === 'survey' ? 'survey' : '1:1';
 
     if (userTurns.length === 0) {
@@ -274,7 +290,8 @@ export class AiService {
 
     if (userTurns.length === 1) {
       return {
-        assistantMessage: 'Got it. Roughly how many people are on the team for this session?',
+        assistantMessage:
+          'Got it. Roughly how many people are on the team for this session?',
         draft: {
           ...emptyDraft(),
           goalPrompt: userTurns[0],
@@ -381,8 +398,10 @@ export class AiService {
     pageHint: string | null,
   ): string {
     const last =
-      [...messages].reverse().find((m) => m.role === 'user')?.content.toLowerCase() ??
-      '';
+      [...messages]
+        .reverse()
+        .find((m) => m.role === 'user')
+        ?.content.toLowerCase() ?? '';
     if (/session|1:1|survey|topic/i.test(last)) {
       return 'To create a session, go to Sessions → New, pick 1:1 or Survey, then use the Describe Session coach for goal, team size, and tone. I can also answer product questions here.';
     }

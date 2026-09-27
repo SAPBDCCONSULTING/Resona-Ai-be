@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import type { Contact as ContactDto, ContactGroup as GroupDto } from '@pulsefeedback/shared';
+import type {
+  Contact as ContactDto,
+  ContactGroup as GroupDto,
+} from '@pulsefeedback/shared';
 import {
   Contact,
   ContactDocument,
@@ -12,12 +15,16 @@ import {
 @Injectable()
 export class ContactsService {
   constructor(
-    @InjectModel(Contact.name) private readonly contacts: Model<ContactDocument>,
-    @InjectModel(ContactGroup.name) private readonly groups: Model<ContactGroupDocument>,
+    @InjectModel(Contact.name)
+    private readonly contacts: Model<ContactDocument>,
+    @InjectModel(ContactGroup.name)
+    private readonly groups: Model<ContactGroupDocument>,
   ) {}
 
   async listContacts(orgId: string, search?: string, groupId?: string) {
-    const filter: Record<string, unknown> = { orgId: new Types.ObjectId(orgId) };
+    const filter: Record<string, unknown> = {
+      orgId: new Types.ObjectId(orgId),
+    };
     if (groupId) filter.groupIds = new Types.ObjectId(groupId);
     if (search?.trim()) {
       filter.$or = [
@@ -25,12 +32,19 @@ export class ContactsService {
         { email: { $regex: search.trim(), $options: 'i' } },
       ];
     }
-    const docs = await this.contacts.find(filter).sort({ name: 1 }).limit(200).lean();
+    const docs = await this.contacts
+      .find(filter)
+      .sort({ name: 1 })
+      .limit(200)
+      .lean();
     return { items: docs.map((d) => this.toContact(d)) };
   }
 
   async listGroups(orgId: string) {
-    const docs = await this.groups.find({ orgId: new Types.ObjectId(orgId) }).sort({ name: 1 }).lean();
+    const docs = await this.groups
+      .find({ orgId: new Types.ObjectId(orgId) })
+      .sort({ name: 1 })
+      .lean();
     return { items: docs.map((d) => this.toGroup(d)) };
   }
 
@@ -66,7 +80,9 @@ export class ContactsService {
         },
         { upsert: true, new: true },
       );
-      created.push(this.toContact(doc.toObject() as unknown as Record<string, unknown>));
+      created.push(
+        this.toContact(doc.toObject() as unknown as Record<string, unknown>),
+      );
     }
 
     return { imported: created.length, items: created };
@@ -104,7 +120,9 @@ export class ContactsService {
       groupIds: Array.isArray(d.groupIds) ? d.groupIds.map(String) : [],
       contactType: (d.contactType as ContactDto['contactType']) ?? 'employee',
       createdAt:
-        d.createdAt instanceof Date ? d.createdAt.toISOString() : new Date().toISOString(),
+        d.createdAt instanceof Date
+          ? d.createdAt.toISOString()
+          : new Date().toISOString(),
     };
   }
 
@@ -115,7 +133,9 @@ export class ContactsService {
       name: String(d.name),
       memberCount: Number(d.memberCount ?? 0),
       createdAt:
-        d.createdAt instanceof Date ? d.createdAt.toISOString() : new Date().toISOString(),
+        d.createdAt instanceof Date
+          ? d.createdAt.toISOString()
+          : new Date().toISOString(),
     };
   }
 }

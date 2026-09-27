@@ -19,7 +19,12 @@ class TemplateTopic {
 @Schema({ timestamps: true, collection: 'session_templates' })
 export class SessionTemplate {
   /** null = system/global template */
-  @Prop({ type: Types.ObjectId, ref: 'Organization', default: null, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    default: null,
+    index: true,
+  })
   orgId!: Types.ObjectId | null;
 
   @Prop({ required: true })
@@ -41,5 +46,6 @@ export class SessionTemplate {
   tone!: string | null;
 }
 
-export const SessionTemplateSchema = SchemaFactory.createForClass(SessionTemplate);
+export const SessionTemplateSchema =
+  SchemaFactory.createForClass(SessionTemplate);
 SessionTemplateSchema.index({ orgId: 1, sessionType: 1, name: 1 });

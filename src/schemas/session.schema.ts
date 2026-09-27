@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import type {
+  CampaignRecurringMode,
   CampaignType,
   HealthStatus,
   SessionStatus,
@@ -120,6 +121,18 @@ SessionSchema.index({ orgId: 1, title: 1 });
 
 export type CampaignDocument = HydratedDocument<Campaign>;
 
+@Schema({ _id: false })
+class LinkedSequenceStep {
+  @Prop({ required: true })
+  id!: string;
+
+  @Prop({ required: true })
+  title!: string;
+
+  @Prop({ default: 0 })
+  order!: number;
+}
+
 @Schema({ timestamps: true, collection: 'campaigns' })
 export class Campaign {
   @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
@@ -152,6 +165,18 @@ export class Campaign {
 
   @Prop({ type: String, default: null })
   cadence!: string | null;
+
+  /** Only meaningful when type === 'recurring'. */
+  @Prop({ type: String, enum: ['unlinked', 'linked'], default: null })
+  recurringMode!: CampaignRecurringMode | null;
+
+  /** Brief used to AI-draft Step 1 of a linked campaign (set later). */
+  @Prop({ type: String, default: null })
+  masterPrompt!: string | null;
+
+  /** Planned steps for a linked campaign. */
+  @Prop({ type: [LinkedSequenceStep], default: [] })
+  linkedSequence!: LinkedSequenceStep[];
 
   @Prop({ type: Types.ObjectId, ref: 'SessionTemplate', default: null })
   sessionTemplateId!: Types.ObjectId | null;
