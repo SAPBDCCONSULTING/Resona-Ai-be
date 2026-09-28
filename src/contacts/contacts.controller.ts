@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
