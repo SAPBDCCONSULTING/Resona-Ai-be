@@ -29,7 +29,10 @@ export class TemplatesService {
     const filter: Record<string, unknown> = {
       $or: [{ orgId: null }, { orgId: new Types.ObjectId(orgId) }],
     };
-    const docs = await this.reportTemplates.find(filter).sort({ name: 1 }).lean();
+    const docs = await this.reportTemplates
+      .find(filter)
+      .sort({ name: 1 })
+      .lean();
     let items = docs.map((d) => this.toReportDto(d));
     if (sessionType) {
       items = items.filter((t) => t.sessionTypes.includes(sessionType));
@@ -47,7 +50,10 @@ export class TemplatesService {
       $or: [{ orgId: null }, { orgId: new Types.ObjectId(orgId) }],
     };
     if (sessionType) filter.sessionType = sessionType;
-    const docs = await this.sessionTemplates.find(filter).sort({ name: 1 }).lean();
+    const docs = await this.sessionTemplates
+      .find(filter)
+      .sort({ name: 1 })
+      .lean();
     return { items: docs.map((d) => this.toSessionDto(d)) };
   }
 
@@ -75,7 +81,9 @@ export class TemplatesService {
       })),
       tone: input.tone ?? null,
     });
-    return this.toSessionDto(doc.toObject() as unknown as Record<string, unknown>);
+    return this.toSessionDto(
+      doc.toObject() as unknown as Record<string, unknown>,
+    );
   }
 
   private toReportDto(d: Record<string, unknown>): ReportTemplateDto {
@@ -85,7 +93,10 @@ export class TemplatesService {
       name: String(d.name),
       description: String(d.description ?? ''),
       kind: d.kind as ReportTemplateDto['kind'],
-      sessionTypes: (d.sessionTypes as SessionType[]) ?? ['one_on_one', 'survey'],
+      sessionTypes: (d.sessionTypes as SessionType[]) ?? [
+        'one_on_one',
+        'survey',
+      ],
     };
   }
 
@@ -100,7 +111,9 @@ export class TemplatesService {
       topics: Array.isArray(d.topics) ? (d.topics as SessionTopic[]) : [],
       tone: (d.tone as string | null) ?? null,
       createdAt:
-        d.createdAt instanceof Date ? d.createdAt.toISOString() : new Date().toISOString(),
+        d.createdAt instanceof Date
+          ? d.createdAt.toISOString()
+          : new Date().toISOString(),
     };
   }
 }

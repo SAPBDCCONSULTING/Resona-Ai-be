@@ -6,7 +6,12 @@ export type RoleDocument = HydratedDocument<Role>;
 
 @Schema({ timestamps: true, collection: 'roles' })
 export class Role {
-  @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true,
+  })
   orgId!: Types.ObjectId;
 
   @Prop({ required: true })

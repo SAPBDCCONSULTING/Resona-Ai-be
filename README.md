@@ -17,9 +17,9 @@ API: http://localhost:4000/api/health
 
 | Email | Role | Notes |
 |-------|------|--------|
-| `admin@acme.local` | Admin | Full permissions |
-| `employee@acme.local` | Employee | Employee app |
-| `analyst@acme.local` | Analyst | `sessions:read` only — 403 on write |
+| `admin@resonaai.local` | Admin | Full permissions |
+| `employee@resonaai.local` | Employee | Employee app |
+| `analyst@resonaai.local` | Analyst | `sessions:read` only — 403 on write |
 
 ### Useful commands
 

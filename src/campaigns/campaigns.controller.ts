@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { AuthService } from '../auth/auth.service';
 import { CampaignsService } from './campaigns.service';
 import {

@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsEnum,
   IsInt,
   IsOptional,
@@ -6,12 +8,28 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import type {
+  CampaignRecurringMode,
   CampaignType,
   SessionStatus,
   SessionType,
 } from '@pulsefeedback/shared';
+
+export class LinkedSequenceStepDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsString()
+  @MaxLength(200)
+  title!: string;
+
+  @IsOptional()
+  @IsInt()
+  order?: number;
+}
 
 export class CreateCampaignDto {
   @IsString()
@@ -25,6 +43,21 @@ export class CreateCampaignDto {
   @IsString()
   @MaxLength(40)
   cadence?: string | null;
+
+  @IsOptional()
+  @IsEnum(['unlinked', 'linked'])
+  recurringMode?: CampaignRecurringMode | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  masterPrompt?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LinkedSequenceStepDto)
+  linkedSequence?: LinkedSequenceStepDto[];
 
   @IsOptional()
   @IsString()
@@ -59,6 +92,21 @@ export class UpdateCampaignDto {
   @IsString()
   @MaxLength(40)
   cadence?: string | null;
+
+  @IsOptional()
+  @IsEnum(['unlinked', 'linked'])
+  recurringMode?: CampaignRecurringMode | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  masterPrompt?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LinkedSequenceStepDto)
+  linkedSequence?: LinkedSequenceStepDto[];
 
   @IsOptional()
   @IsString()

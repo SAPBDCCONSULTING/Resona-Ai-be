@@ -5,7 +5,12 @@ export type ContactDocument = HydratedDocument<Contact>;
 
 @Schema({ timestamps: true, collection: 'contacts' })
 export class Contact {
-  @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true,
+  })
   orgId!: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
@@ -22,6 +27,10 @@ export class Contact {
 
   @Prop({ enum: ['employee', 'external'], default: 'employee' })
   contactType!: 'employee' | 'external';
+
+  /** Linked login account, when one exists. Null until an account is created (future task). */
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  userId!: Types.ObjectId | null;
 }
 
 export const ContactSchema = SchemaFactory.createForClass(Contact);
@@ -31,7 +40,12 @@ export type ContactGroupDocument = HydratedDocument<ContactGroup>;
 
 @Schema({ timestamps: true, collection: 'contact_groups' })
 export class ContactGroup {
-  @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true,
+  })
   orgId!: Types.ObjectId;
 
   @Prop({ required: true, trim: true })

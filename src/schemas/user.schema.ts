@@ -5,7 +5,12 @@ export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
-  @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true,
+  })
   orgId!: Types.ObjectId;
 
   @Prop({ required: true, unique: true, index: true })

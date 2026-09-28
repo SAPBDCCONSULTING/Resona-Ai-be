@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { UpdateOrgDto } from './dto/update-org.dto';
 import { OrgService } from './org.service';
 
@@ -18,7 +21,10 @@ export class OrgController {
 
   @Patch()
   @RequirePermissions('settings:write')
-  update(@Req() req: Request & { user: { orgId: string } }, @Body() dto: UpdateOrgDto) {
+  update(
+    @Req() req: Request & { user: { orgId: string } },
+    @Body() dto: UpdateOrgDto,
+  ) {
     return this.org.update(req.user.orgId, dto);
   }
 }

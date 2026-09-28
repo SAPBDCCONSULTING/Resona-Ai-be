@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import type {
+  CampaignRecurringMode,
   CampaignType,
   HealthStatus,
   SessionStatus,
@@ -107,6 +108,40 @@ export class Session {
 
   @Prop({ type: [String], default: [] })
   participantIds!: string[];
+
+  /**
+   * Resolved User ids for the currently-selected participantIds, computed at launch.
+   * Contacts with no linked User account are skipped (see Contact.userId).
+   * This is what employee-assignment queries key on — participantIds stays Contact ids.
+   */
+  @Prop({ type: [String], default: [] })
+  assignedUserIds!: string[];
+
+  /** Employee-facing title shown on join / invite. */
+  @Prop({ type: String, default: null })
+  participantTitle!: string | null;
+
+  @Prop({ type: String, default: null })
+  participantDescription!: string | null;
+
+  @Prop({ type: String, default: null })
+  welcomeMessage!: string | null;
+
+  @Prop({ default: false })
+  anonymous!: boolean;
+
+  @Prop({
+    type: {
+      subject: { type: String, default: '' },
+      header: { type: String, default: '' },
+      body: { type: String, default: '' },
+    },
+    default: () => ({ subject: '', header: '', body: '' }),
+  })
+  invitation!: { subject: string; header: string; body: string };
+
+  @Prop({ type: [String], default: [] })
+  engagementMetrics!: string[];
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);
@@ -119,6 +154,18 @@ SessionSchema.index({ orgId: 1, type: 1, favorite: 1, updatedAt: -1 });
 SessionSchema.index({ orgId: 1, title: 1 });
 
 export type CampaignDocument = HydratedDocument<Campaign>;
+
+@Schema({ _id: false })
+class LinkedSequenceStep {
+  @Prop({ required: true })
+  id!: string;
+
+  @Prop({ required: true })
+  title!: string;
+
+  @Prop({ default: 0 })
+  order!: number;
+}
 
 @Schema({ timestamps: true, collection: 'campaigns' })
 export class Campaign {
@@ -152,6 +199,18 @@ export class Campaign {
 
   @Prop({ type: String, default: null })
   cadence!: string | null;
+
+  /** Only meaningful when type === 'recurring'. */
+  @Prop({ type: String, enum: ['unlinked', 'linked'], default: null })
+  recurringMode!: CampaignRecurringMode | null;
+
+  /** Brief used to AI-draft Step 1 of a linked campaign (set later). */
+  @Prop({ type: String, default: null })
+  masterPrompt!: string | null;
+
+  /** Planned steps for a linked campaign. */
+  @Prop({ type: [LinkedSequenceStep], default: [] })
+  linkedSequence!: LinkedSequenceStep[];
 
   @Prop({ type: Types.ObjectId, ref: 'SessionTemplate', default: null })
   sessionTemplateId!: Types.ObjectId | null;

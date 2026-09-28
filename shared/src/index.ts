@@ -44,6 +44,9 @@ export type SessionBoardFilter =
 
 export type CampaignType = 'recurring' | 'linked' | 'independent';
 
+/** Only meaningful when type === 'recurring'. unlinked = same session repeats; linked = whole chain repeats each cycle. */
+export type CampaignRecurringMode = 'unlinked' | 'linked';
+
 export type HealthStatus = 'on_track' | 'behind' | 'done' | 'no_schedule';
 
 export type SessionSortBy = 'endAt' | 'startAt' | 'updatedAt' | 'title' | 'custom';
@@ -188,6 +191,12 @@ export interface SessionTopic {
   order: number;
 }
 
+export interface SessionInvitation {
+  subject: string;
+  header: string;
+  body: string;
+}
+
 export interface FeedbackSession {
   id: string;
   orgId: string;
@@ -210,6 +219,19 @@ export interface FeedbackSession {
   tone: string | null;
   reportTemplateId: string | null;
   participantIds: string[];
+  /**
+   * Resolved User ids for participantIds, computed at launch (Contacts with no linked
+   * User account are skipped). Employee-assignment queries key on this, not participantIds.
+   */
+  assignedUserIds: string[];
+  /** Employee-facing title (Verify step). */
+  participantTitle: string | null;
+  /** Employee-facing description / invite framing. */
+  participantDescription: string | null;
+  welcomeMessage: string | null;
+  anonymous: boolean;
+  invitation: SessionInvitation;
+  engagementMetrics: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -234,6 +256,12 @@ export interface UpdateSessionDraftInput {
   startAt?: string | null;
   endAt?: string | null;
   status?: SessionStatus;
+  participantTitle?: string | null;
+  participantDescription?: string | null;
+  welcomeMessage?: string | null;
+  anonymous?: boolean;
+  invitation?: Partial<SessionInvitation>;
+  engagementMetrics?: string[];
 }
 
 export interface SessionListQuery {
@@ -252,6 +280,12 @@ export interface SessionListResponse {
   };
 }
 
+export interface LinkedSequenceStep {
+  id: string;
+  title: string;
+  order: number;
+}
+
 export interface Campaign {
   id: string;
   orgId: string;
@@ -264,6 +298,12 @@ export interface Campaign {
   createdByName: string;
   /** ISO cadence hint for recurring campaigns, e.g. weekly | monthly | quarterly */
   cadence: string | null;
+  /** Only meaningful when type === 'recurring'. */
+  recurringMode: CampaignRecurringMode | null;
+  /** Brief used to AI-draft Step 1 of a linked campaign. */
+  masterPrompt: string | null;
+  /** Planned steps for a linked campaign (Step 1 -> report -> Step 2 -> ...). */
+  linkedSequence: LinkedSequenceStep[];
   sessionTemplateId: string | null;
   sessionsCompleted: number;
   sessionsTotal: number;
@@ -286,6 +326,12 @@ export interface CreateCampaignInput {
   title: string;
   type: CampaignType;
   cadence?: string | null;
+  /** Only meaningful when type === 'recurring'. */
+  recurringMode?: CampaignRecurringMode | null;
+  /** Only meaningful when type === 'linked'. */
+  masterPrompt?: string | null;
+  /** Only meaningful when type === 'linked'. */
+  linkedSequence?: LinkedSequenceStep[];
   sessionTemplateId?: string | null;
   /** How many child sessions to spawn on create (recurring default 3). */
   sessionCount?: number;
@@ -297,6 +343,9 @@ export interface CreateCampaignInput {
 export interface UpdateCampaignInput {
   title?: string;
   cadence?: string | null;
+  recurringMode?: CampaignRecurringMode | null;
+  masterPrompt?: string | null;
+  linkedSequence?: LinkedSequenceStep[];
   startAt?: string | null;
   endAt?: string | null;
   status?: SessionStatus;
@@ -387,6 +436,8 @@ export interface Contact {
   department: string | null;
   groupIds: string[];
   contactType: 'employee' | 'external';
+  /** Linked login account, when one exists. Null until an account is created (future task). */
+  userId: string | null;
   createdAt: string;
 }
 
@@ -441,6 +492,8 @@ export interface SessionChatTurnResult {
   assistantMessage: string;
   draft: SessionChatDraft;
   readyToGenerate: boolean;
+  /** Quick-reply chips for the HR Describe coach UI. */
+  suggestions?: string[];
 }
 
 export interface AssistantChatTurnInput {
@@ -462,6 +515,8 @@ export interface SessionJoinInfo {
   startAt: string | null;
   endAt: string | null;
   joinPath: string;
+  /** True when status is ongoing and within the start/end window. */
+  acceptingResponses: boolean;
 }
 
 export interface ResponseAnswer {
@@ -480,6 +535,50 @@ export interface SessionResponse {
 
 export interface SubmitSessionResponseInput {
   answers: ResponseAnswer[];
+}
+
+/** Per-employee 1:1 discussion thread (topic-guided AI chat). */
+export type ConversationStatus = 'available' | 'active' | 'completed' | 'expired';
+
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  topicId?: string | null;
+  createdAt: string;
+}
+
+export interface ConversationTopicSummary {
+  topicId: string;
+  text: string;
+}
+
+export interface SessionConversation {
+  id: string;
+  orgId: string;
+  sessionId: string;
+  userId: string;
+  status: ConversationStatus;
+  currentTopicIndex: number;
+  messages: ConversationMessage[];
+  topicSummaries: ConversationTopicSummary[];
+  responseId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationChatTurnInput {
+  message: string;
+}
+
+export interface ConversationChatTurnResult {
+  conversation: SessionConversation;
+  assistantMessage: string;
+  currentTopicIndex: number;
+  currentTopicTitle: string | null;
+  topicComplete: boolean;
+  agendaComplete: boolean;
+  /** Present when agenda finished and Response was written. */
+  response: SessionResponse | null;
 }
 
 /** Employee “My sessions” row. */

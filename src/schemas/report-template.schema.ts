@@ -7,7 +7,12 @@ export type ReportTemplateDocument = HydratedDocument<ReportTemplate>;
 @Schema({ timestamps: true, collection: 'report_templates' })
 export class ReportTemplate {
   /** null = system/global template */
-  @Prop({ type: Types.ObjectId, ref: 'Organization', default: null, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    default: null,
+    index: true,
+  })
   orgId!: Types.ObjectId | null;
 
   @Prop({ required: true })
@@ -23,4 +28,5 @@ export class ReportTemplate {
   sessionTypes!: SessionType[];
 }
 
-export const ReportTemplateSchema = SchemaFactory.createForClass(ReportTemplate);
+export const ReportTemplateSchema =
+  SchemaFactory.createForClass(ReportTemplate);

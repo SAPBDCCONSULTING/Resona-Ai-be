@@ -17,7 +17,10 @@ import type {
   SessionType,
 } from '@pulsefeedback/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { AuthService } from '../auth/auth.service';
 import { SessionsService } from './sessions.service';
 import { CreateDraftDto, UpdateDraftDto } from './dto/session-draft.dto';

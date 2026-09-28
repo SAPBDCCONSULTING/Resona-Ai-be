@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import type { PermissionKey } from '@pulsefeedback/shared';
-import { Organization, OrganizationDocument } from '../schemas/organization.schema';
+import {
+  Organization,
+  OrganizationDocument,
+} from '../schemas/organization.schema';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { User, UserDocument } from '../schemas/user.schema';
 import {
@@ -65,13 +68,13 @@ const ANALYST_PERMS: PermissionKey[] = [
 
 const EMPLOYEE_PERMS: PermissionKey[] = ['sessions:read', 'responses:write'];
 
-const ACME_PROFILE = {
+const RESONAAI_PROFILE = {
   address: '1710 Greenwood Road, Pleasanton CA 94566',
   country: 'United States',
   description:
-    'Acme Corp uses Resona AI to run AI-assisted employee feedback — 1:1s, focus groups, and surveys that help leaders listen, learn, and act.',
-  website: 'www.acme.example',
-  domain: 'hello@acme.local',
+    'Resona AI runs AI-assisted employee feedback — 1:1s, focus groups, and surveys that help leaders listen, learn, and act.',
+  website: 'www.resonaai.example',
+  domain: 'hello@resonaai.local',
   phone: '+1 925-640-6315',
   timezone: 'Los Angeles (PDT)',
   foundedYear: '2025',
@@ -93,13 +96,18 @@ export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
 
   constructor(
-    @InjectModel(Organization.name) private readonly orgs: Model<OrganizationDocument>,
+    @InjectModel(Organization.name)
+    private readonly orgs: Model<OrganizationDocument>,
     @InjectModel(Role.name) private readonly roles: Model<RoleDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
-    @InjectModel(Session.name) private readonly sessions: Model<SessionDocument>,
-    @InjectModel(Campaign.name) private readonly campaigns: Model<CampaignDocument>,
-    @InjectModel(Contact.name) private readonly contacts: Model<ContactDocument>,
-    @InjectModel(ContactGroup.name) private readonly groups: Model<ContactGroupDocument>,
+    @InjectModel(Session.name)
+    private readonly sessions: Model<SessionDocument>,
+    @InjectModel(Campaign.name)
+    private readonly campaigns: Model<CampaignDocument>,
+    @InjectModel(Contact.name)
+    private readonly contacts: Model<ContactDocument>,
+    @InjectModel(ContactGroup.name)
+    private readonly groups: Model<ContactGroupDocument>,
     @InjectModel(ReportTemplate.name)
     private readonly templates: Model<ReportTemplateDocument>,
     @InjectModel(SessionTemplate.name)
@@ -110,48 +118,70 @@ export class SeedService implements OnModuleInit {
     await this.ensureSystemTemplates();
     await this.ensureSessionOutlineTemplates();
 
-    const existing = await this.orgs.findOne({ slug: 'acme' });
+    // Prefer resonaai; if only legacy acme exists, rename it. Never set slug=resonaai when that slug already exists on another doc.
+    const resonaOrg = await this.orgs.findOne({ slug: 'resonaai' });
+    const acmeOrg = await this.orgs.findOne({ slug: 'acme' });
+    const existing = resonaOrg ?? acmeOrg;
+
     if (existing) {
-      await this.orgs.updateOne(
-        { _id: existing._id },
-        {
-          $set: {
-            name: existing.name || 'Acme Corp',
-            address: existing.address ?? ACME_PROFILE.address,
-            country: existing.country ?? ACME_PROFILE.country,
-            description: existing.description ?? ACME_PROFILE.description,
-            website: existing.website ?? ACME_PROFILE.website,
-            domain: existing.domain ?? ACME_PROFILE.domain,
-            phone: existing.phone ?? ACME_PROFILE.phone,
-            timezone: existing.timezone ?? ACME_PROFILE.timezone,
-            foundedYear: existing.foundedYear ?? ACME_PROFILE.foundedYear,
-            logoUrl: existing.logoUrl ?? ACME_PROFILE.logoUrl,
-            accentColor: existing.accentColor ?? ACME_PROFILE.accentColor,
-            accentSoft: existing.accentSoft ?? ACME_PROFILE.accentSoft,
-            tagline: existing.tagline ?? ACME_PROFILE.tagline,
-            aiSystemPrompt: existing.aiSystemPrompt ?? ACME_PROFILE.aiSystemPrompt,
-            blockedTopics:
-              existing.blockedTopics?.length ? existing.blockedTopics : ACME_PROFILE.blockedTopics,
-            piiRedactionEnabled: existing.piiRedactionEnabled ?? ACME_PROFILE.piiRedactionEnabled,
-            retentionDays: existing.retentionDays ?? ACME_PROFILE.retentionDays,
-            archiveAfterDays: existing.archiveAfterDays ?? ACME_PROFILE.archiveAfterDays,
-            softDeleteEnabled: existing.softDeleteEnabled ?? ACME_PROFILE.softDeleteEnabled,
-          },
-        },
-      );
+      const orgId = existing._id as Types.ObjectId;
+      await this.migrateAcmeToResonaai(orgId);
+
+      const profileSet: Record<string, unknown> = {
+        name: 'Resona AI',
+        address: existing.address ?? RESONAAI_PROFILE.address,
+        country: existing.country ?? RESONAAI_PROFILE.country,
+        description: RESONAAI_PROFILE.description,
+        website: RESONAAI_PROFILE.website,
+        domain: RESONAAI_PROFILE.domain,
+        phone: existing.phone ?? RESONAAI_PROFILE.phone,
+        timezone: existing.timezone ?? RESONAAI_PROFILE.timezone,
+        foundedYear: existing.foundedYear ?? RESONAAI_PROFILE.foundedYear,
+        logoUrl: existing.logoUrl ?? RESONAAI_PROFILE.logoUrl,
+        accentColor: existing.accentColor ?? RESONAAI_PROFILE.accentColor,
+        accentSoft: existing.accentSoft ?? RESONAAI_PROFILE.accentSoft,
+        tagline: existing.tagline ?? RESONAAI_PROFILE.tagline,
+        aiSystemPrompt: existing.aiSystemPrompt ?? RESONAAI_PROFILE.aiSystemPrompt,
+        blockedTopics:
+          existing.blockedTopics?.length
+            ? existing.blockedTopics
+            : RESONAAI_PROFILE.blockedTopics,
+        piiRedactionEnabled:
+          existing.piiRedactionEnabled ?? RESONAAI_PROFILE.piiRedactionEnabled,
+        retentionDays: existing.retentionDays ?? RESONAAI_PROFILE.retentionDays,
+        archiveAfterDays: existing.archiveAfterDays ?? RESONAAI_PROFILE.archiveAfterDays,
+        softDeleteEnabled: existing.softDeleteEnabled ?? RESONAAI_PROFILE.softDeleteEnabled,
+      };
+      // Only rename acme → resonaai when no resonaai org already exists
+      if (!resonaOrg && acmeOrg && String(existing._id) === String(acmeOrg._id)) {
+        profileSet.slug = 'resonaai';
+      }
+
+      await this.orgs.updateOne({ _id: orgId }, { $set: profileSet });
+
+      if (resonaOrg && acmeOrg) {
+        this.logger.warn(
+          'Seed: both acme + resonaai orgs present — using resonaai; leave/delete leftover acme org manually if unused',
+        );
+      }
+
       await this.sessions.updateMany(
-        { createdByName: { $in: [null, ''] } },
-        { $set: { createdByName: 'Acme Admin' } },
+        { createdByName: { $in: [null, '', 'Acme Admin'] } },
+        { $set: { createdByName: 'Resona Admin' } },
       );
-      await this.ensureOrgDirectory(String(existing._id));
-      await this.ensureDemoUsers(existing._id as Types.ObjectId);
-      await this.ensureEmployeeAssignments(existing._id as Types.ObjectId);
-      await this.ensureDemoCampaign(existing._id as Types.ObjectId);
+      await this.ensureOrgDirectory(String(orgId));
+      await this.ensureDemoUsers(orgId);
+      await this.ensureEmployeeAssignments(orgId);
+      await this.ensureDemoCampaign(orgId);
       this.logger.log('Seed skipped org create — ensured contacts/templates/users/campaigns/profile');
       return;
     }
 
-    const org = await this.orgs.create({ name: 'Acme Corp', slug: 'acme', ...ACME_PROFILE });
+    const org = await this.orgs.create({
+      name: 'Resona AI',
+      slug: 'resonaai',
+      ...RESONAAI_PROFILE,
+    });
     const adminRole = await this.roles.create({
       orgId: org._id,
       name: 'Admin',
@@ -171,14 +201,14 @@ export class SeedService implements OnModuleInit {
     const passwordHash = await bcrypt.hash('password123', 10);
     const admin = await this.users.create({
       orgId: org._id,
-      email: 'admin@acme.local',
-      name: 'Acme Admin',
+      email: 'admin@resonaai.local',
+      name: 'Resona Admin',
       passwordHash,
       roleId: adminRole._id,
       locale: 'en',
     });
 
-    await this.ensureDemoUsers(org._id as Types.ObjectId, passwordHash);
+    await this.ensureDemoUsers(org._id, passwordHash);
     await this.ensureOrgDirectory(String(org._id));
 
     await this.sessions.insertMany([
@@ -192,13 +222,19 @@ export class SeedService implements OnModuleInit {
         createdBy: admin._id,
         createdByName: admin.name,
         campaignId: null,
-        progress: { invited: 12, completed: 4, percent: 33, health: 'on_track' },
+        progress: {
+          invited: 12,
+          completed: 4,
+          percent: 33,
+          health: 'on_track',
+        },
         favorite: true,
         topics: [
           { id: 't1', title: 'First-week experience', order: 1 },
           { id: 't2', title: 'Belonging & support', order: 2 },
         ],
-        goalPrompt: 'Understand how new hires feel supported in their first 30 days.',
+        goalPrompt:
+          'Understand how new hires feel supported in their first 30 days.',
         wizardStep: 'schedule',
         entryMode: 'blank',
       },
@@ -212,7 +248,12 @@ export class SeedService implements OnModuleInit {
         createdBy: admin._id,
         createdByName: admin.name,
         campaignId: null,
-        progress: { invited: 240, completed: 88, percent: 37, health: 'behind' },
+        progress: {
+          invited: 240,
+          completed: 88,
+          percent: 37,
+          health: 'behind',
+        },
         favorite: false,
         topics: [
           { id: 't1', title: 'Loyalty drivers', order: 1 },
@@ -224,12 +265,59 @@ export class SeedService implements OnModuleInit {
       },
     ]);
 
-    await this.ensureEmployeeAssignments(org._id as Types.ObjectId);
-    await this.ensureDemoCampaign(org._id as Types.ObjectId);
+    await this.ensureEmployeeAssignments(org._id);
+    await this.ensureDemoCampaign(org._id);
 
     this.logger.log(
-      'Seeded Acme org — admin@acme.local / employee@acme.local / analyst@acme.local (password123)',
+      'Seeded Resona AI org — admin@resonaai.local / employee@resonaai.local / analyst@resonaai.local (password123)',
     );
+  }
+
+  /** Rename legacy @acme.local demo accounts to @resonaai.local (idempotent). */
+  private async migrateAcmeToResonaai(orgId: Types.ObjectId) {
+    const renames: Array<{ from: string; to: string; name: string }> = [
+      { from: 'admin@acme.local', to: 'admin@resonaai.local', name: 'Resona Admin' },
+      { from: 'employee@acme.local', to: 'employee@resonaai.local', name: 'Resona Employee' },
+      { from: 'analyst@acme.local', to: 'analyst@resonaai.local', name: 'Resona Analyst' },
+    ];
+    for (const { from, to, name } of renames) {
+      // email is globally unique — don't scope by orgId
+      const legacy = await this.users.findOne({ email: from });
+      if (!legacy) continue;
+
+      const already = await this.users.findOne({ email: to });
+      if (already) {
+        await this.users.deleteOne({ _id: legacy._id });
+        this.logger.log(`Seed migrate: removed leftover ${from} (kept ${to})`);
+        continue;
+      }
+
+      await this.users.updateOne(
+        { _id: legacy._id },
+        { $set: { email: to, name, orgId } },
+      );
+    }
+    await this.users.updateOne(
+      { email: 'admin@resonaai.local', name: { $in: ['Acme Admin', ''] } },
+      { $set: { name: 'Resona Admin' } },
+    );
+
+    const legacyContacts = await this.contacts.find({ email: /@acme\.local$/i }).lean();
+    for (const c of legacyContacts) {
+      const nextEmail = String(c.email).toLowerCase().replace(/@acme\.local$/i, '@resonaai.local');
+      const clash = await this.contacts.findOne({
+        orgId: c.orgId ?? orgId,
+        email: nextEmail,
+      });
+      if (clash) {
+        await this.contacts.deleteOne({ _id: c._id });
+        continue;
+      }
+      await this.contacts.updateOne(
+        { _id: c._id },
+        { $set: { email: nextEmail, orgId } },
+      );
+    }
   }
 
   private async ensureDemoUsers(orgId: Types.ObjectId, passwordHash?: string) {
@@ -237,7 +325,9 @@ export class SeedService implements OnModuleInit {
 
     const employeeRole = await this.roles.findOneAndUpdate(
       { orgId, name: 'Employee' },
-      { $setOnInsert: { orgId, name: 'Employee', permissions: EMPLOYEE_PERMS } },
+      {
+        $setOnInsert: { orgId, name: 'Employee', permissions: EMPLOYEE_PERMS },
+      },
       { upsert: true, new: true },
     );
     const analystRole = await this.roles.findOneAndUpdate(
@@ -252,14 +342,14 @@ export class SeedService implements OnModuleInit {
     );
 
     await this.users.findOneAndUpdate(
-      { email: 'employee@acme.local' },
+      { email: 'employee@resonaai.local' },
       {
         $setOnInsert: {
           orgId,
-          email: 'employee@acme.local',
-          name: 'Acme Employee',
+          email: 'employee@resonaai.local',
+          name: 'Resona Employee',
           passwordHash: hash,
-          roleId: employeeRole!._id,
+          roleId: employeeRole._id,
           locale: 'en',
         },
       },
@@ -267,14 +357,14 @@ export class SeedService implements OnModuleInit {
     );
 
     await this.users.findOneAndUpdate(
-      { email: 'analyst@acme.local' },
+      { email: 'analyst@resonaai.local' },
       {
         $setOnInsert: {
           orgId,
-          email: 'analyst@acme.local',
-          name: 'Acme Analyst',
+          email: 'analyst@resonaai.local',
+          name: 'Resona Analyst',
           passwordHash: hash,
-          roleId: analystRole!._id,
+          roleId: analystRole._id,
           locale: 'en',
         },
       },
@@ -284,7 +374,7 @@ export class SeedService implements OnModuleInit {
 
   /** Assign employee user to open sessions so Phase 2 take/submit works. */
   private async ensureEmployeeAssignments(orgId: Types.ObjectId) {
-    const employee = await this.users.findOne({ email: 'employee@acme.local' });
+    const employee = await this.users.findOne({ email: 'employee@resonaai.local' });
     if (!employee) return;
 
     const userId = String(employee._id);
@@ -293,7 +383,10 @@ export class SeedService implements OnModuleInit {
       status: { $in: ['ongoing', 'scheduled'] },
     });
 
-    const defaultTopics: Record<string, { id: string; title: string; order: number }[]> = {
+    const defaultTopics: Record<
+      string,
+      { id: string; title: string; order: number }[]
+    > = {
       one_on_one: [
         { id: 't1', title: 'First-week experience', order: 1 },
         { id: 't2', title: 'Belonging & support', order: 2 },
@@ -305,7 +398,9 @@ export class SeedService implements OnModuleInit {
     };
 
     for (const session of open) {
-      const ids = Array.isArray(session.participantIds) ? [...session.participantIds] : [];
+      const ids = Array.isArray(session.participantIds)
+        ? [...session.participantIds]
+        : [];
       let dirty = false;
       if (!ids.includes(userId)) {
         ids.push(userId);
@@ -313,7 +408,8 @@ export class SeedService implements OnModuleInit {
         dirty = true;
       }
       if (!Array.isArray(session.topics) || session.topics.length === 0) {
-        session.topics = defaultTopics[String(session.type)] ?? defaultTopics.survey;
+        session.topics =
+          defaultTopics[String(session.type)] ?? defaultTopics.survey;
         dirty = true;
       }
       if (dirty) {
@@ -363,7 +459,8 @@ export class SeedService implements OnModuleInit {
       {
         orgId: null,
         name: 'Manager 1:1 outline',
-        description: 'Classic bi-weekly check-in covering wins, blockers, and growth.',
+        description:
+          'Classic bi-weekly check-in covering wins, blockers, and growth.',
         sessionType: 'one_on_one',
         goalPrompt: 'Build trust and surface blockers in a private 1:1.',
         tone: 'supportive',
@@ -376,7 +473,8 @@ export class SeedService implements OnModuleInit {
       {
         orgId: null,
         name: 'Engagement pulse survey',
-        description: 'Short recurring survey for loyalty, clarity, and workload.',
+        description:
+          'Short recurring survey for loyalty, clarity, and workload.',
         sessionType: 'survey',
         goalPrompt: 'Track engagement trends across the org each quarter.',
         tone: 'neutral',
@@ -410,7 +508,7 @@ export class SeedService implements OnModuleInit {
     });
     if (existing) return;
 
-    const admin = await this.users.findOne({ email: 'admin@acme.local' });
+    const admin = await this.users.findOne({ email: 'admin@resonaai.local' });
     if (!admin) return;
 
     const surveyTpl = await this.sessionTemplates.findOne({
@@ -448,7 +546,9 @@ export class SeedService implements OnModuleInit {
     await this.sessions.insertMany(
       [1, 2, 3].map((round) => {
         const startAt = new Date(now + (round - 1) * windowMs);
-        const endAt = new Date(startAt.getTime() + windowMs - 24 * 60 * 60 * 1000);
+        const endAt = new Date(
+          startAt.getTime() + windowMs - 24 * 60 * 60 * 1000,
+        );
         return {
           orgId,
           title: `Quarterly Engagement Pulse — Round ${round}`,
@@ -467,7 +567,8 @@ export class SeedService implements OnModuleInit {
           },
           favorite: false,
           topics,
-          goalPrompt: surveyTpl?.goalPrompt ?? 'Track engagement trends across the org.',
+          goalPrompt:
+            surveyTpl?.goalPrompt ?? 'Track engagement trends across the org.',
           wizardStep: 'schedule',
           entryMode: 'blank',
           tone: surveyTpl?.tone ?? 'neutral',
@@ -499,7 +600,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Aarav Sharma',
-          email: 'aarav@acme.local',
+          email: 'aarav@resonaai.local',
           department: 'Engineering',
           groupIds: [eng._id],
           contactType: 'employee',
@@ -507,7 +608,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Priya Nair',
-          email: 'priya@acme.local',
+          email: 'priya@resonaai.local',
           department: 'Engineering',
           groupIds: [eng._id],
           contactType: 'employee',
@@ -515,7 +616,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Sam Chen',
-          email: 'sam@acme.local',
+          email: 'sam@resonaai.local',
           department: 'Engineering',
           groupIds: [eng._id],
           contactType: 'employee',
@@ -523,7 +624,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Maya Lopez',
-          email: 'maya@acme.local',
+          email: 'maya@resonaai.local',
           department: 'People Ops',
           groupIds: [people._id],
           contactType: 'employee',
@@ -531,7 +632,7 @@ export class SeedService implements OnModuleInit {
         {
           orgId: orgObjectId,
           name: 'Jordan Lee',
-          email: 'jordan@acme.local',
+          email: 'jordan@resonaai.local',
           department: 'People Ops',
           groupIds: [people._id],
           contactType: 'employee',

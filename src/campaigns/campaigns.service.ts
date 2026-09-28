@@ -11,6 +11,7 @@ import type {
   CampaignListResponse,
   FeedbackSession,
   HealthStatus,
+  LinkedSequenceStep,
   SessionTopic,
   SessionType,
 } from '@pulsefeedback/shared';
@@ -80,9 +81,14 @@ export class CampaignsService {
   async create(actor: Actor, dto: CreateCampaignDto): Promise<CampaignDetail> {
     const title = dto.title.trim();
     if (!title) throw new BadRequestException('Title is required');
+    if (dto.type === 'linked' && dto.linkedSequence?.some((s) => !s.title?.trim())) {
+      throw new BadRequestException('Each linked step requires a title');
+    }
 
     const sessionCount =
-      dto.sessionCount ?? (dto.type === 'recurring' ? 3 : dto.type === 'linked' ? 2 : 1);
+      dto.type === 'linked' && dto.linkedSequence?.length
+        ? dto.linkedSequence.length
+        : (dto.sessionCount ?? (dto.type === 'recurring' ? 3 : dto.type === 'linked' ? 2 : 1));
     const sessionType: SessionType = dto.sessionType ?? 'survey';
 
     let topics: SessionTopic[] = [];
@@ -110,6 +116,18 @@ export class CampaignsService {
       templateId = tpl._id as Types.ObjectId;
     }
 
+    const linkedSequence: LinkedSequenceStep[] =
+      dto.type === 'linked' && dto.linkedSequence?.length
+        ? dto.linkedSequence.map((s, i) => ({
+            id: s.id || `step${i + 1}`,
+            title: s.title,
+            order: s.order ?? i + 1,
+          }))
+        : [];
+
+    const linkedSteps: LinkedSequenceStep[] =
+      linkedSequence.length > 0 ? [...linkedSequence].sort((a, b) => a.order - b.order) : [];
+
     const campaign = await this.campaigns.create({
       orgId: new Types.ObjectId(actor.orgId),
       title,
@@ -120,6 +138,10 @@ export class CampaignsService {
       createdBy: new Types.ObjectId(actor.userId),
       createdByName: actor.name,
       cadence: dto.cadence ?? (dto.type === 'recurring' ? 'monthly' : null),
+      recurringMode:
+        dto.type === 'recurring' ? (dto.recurringMode ?? 'unlinked') : null,
+      masterPrompt: dto.type === 'linked' ? (dto.masterPrompt ?? null) : null,
+      linkedSequence,
       sessionTemplateId: templateId,
       sessionsCompleted: 0,
       sessionsTotal: sessionCount,
@@ -134,12 +156,15 @@ export class CampaignsService {
     for (let i = 0; i < sessionCount; i++) {
       const startAt = new Date(baseStart.getTime() + i * windowMs);
       const endAt = new Date(startAt.getTime() + windowMs - 24 * 60 * 60 * 1000);
+      const linkedStep = linkedSteps[i];
       const label =
         dto.type === 'recurring'
           ? `${title} — Round ${i + 1}`
-          : sessionCount > 1
-            ? `${title} — Session ${i + 1}`
-            : title;
+          : linkedStep
+            ? `${title} — ${linkedStep.title}`
+            : sessionCount > 1
+              ? `${title} — Session ${i + 1}`
+              : title;
       sessionDocs.push({
         orgId: new Types.ObjectId(actor.orgId),
         title: label,
@@ -184,6 +209,15 @@ export class CampaignsService {
     const updates: Record<string, unknown> = {};
     if (dto.title !== undefined) updates.title = dto.title.trim() || 'Untitled campaign';
     if (dto.cadence !== undefined) updates.cadence = dto.cadence;
+    if (dto.recurringMode !== undefined) updates.recurringMode = dto.recurringMode;
+    if (dto.masterPrompt !== undefined) updates.masterPrompt = dto.masterPrompt;
+    if (dto.linkedSequence !== undefined) {
+      updates.linkedSequence = dto.linkedSequence.map((s, i) => ({
+        id: s.id || `step${i + 1}`,
+        title: s.title,
+        order: s.order ?? i + 1,
+      }));
+    }
     if (dto.startAt !== undefined) updates.startAt = dto.startAt ? new Date(dto.startAt) : null;
     if (dto.endAt !== undefined) updates.endAt = dto.endAt ? new Date(dto.endAt) : null;
     if (dto.status !== undefined) updates.status = dto.status;
@@ -301,6 +335,11 @@ export class CampaignsService {
       createdBy: String(d.createdBy),
       createdByName: String(d.createdByName ?? ''),
       cadence: (d.cadence as string | null) ?? null,
+      recurringMode: (d.recurringMode as CampaignDto['recurringMode']) ?? null,
+      masterPrompt: (d.masterPrompt as string | null) ?? null,
+      linkedSequence: Array.isArray(d.linkedSequence)
+        ? (d.linkedSequence as LinkedSequenceStep[])
+        : [],
       sessionTemplateId: d.sessionTemplateId ? String(d.sessionTemplateId) : null,
       sessionsCompleted: Number(d.sessionsCompleted ?? 0),
       sessionsTotal: Number(d.sessionsTotal ?? 0),
@@ -343,6 +382,21 @@ export class CampaignsService {
       reportTemplateId: (d.reportTemplateId as string | null) ?? null,
       participantIds: Array.isArray(d.participantIds)
         ? (d.participantIds as string[])
+        : [],
+      assignedUserIds: Array.isArray(d.assignedUserIds)
+        ? (d.assignedUserIds as string[])
+        : [],
+      participantTitle: (d.participantTitle as string | null) ?? null,
+      participantDescription: (d.participantDescription as string | null) ?? null,
+      welcomeMessage: (d.welcomeMessage as string | null) ?? null,
+      anonymous: Boolean(d.anonymous),
+      invitation: {
+        subject: String((d.invitation as { subject?: string } | undefined)?.subject ?? ''),
+        header: String((d.invitation as { header?: string } | undefined)?.header ?? ''),
+        body: String((d.invitation as { body?: string } | undefined)?.body ?? ''),
+      },
+      engagementMetrics: Array.isArray(d.engagementMetrics)
+        ? (d.engagementMetrics as string[])
         : [],
       createdAt,
       updatedAt,

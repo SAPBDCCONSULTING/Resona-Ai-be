@@ -1,11 +1,8 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Header,
-  Param,
-  Patch,
   Post,
   Query,
   Req,
@@ -15,7 +12,10 @@ import {
 import { IsString } from 'class-validator';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto, UpdateContactDto } from './dto/contact.dto';
 import { AddGroupMembersDto, CreateGroupDto, UpdateGroupDto } from './dto/group.dto';

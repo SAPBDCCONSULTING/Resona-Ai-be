@@ -1,4 +1,12 @@
-import { IsArray, IsEnum, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import type {
   CreateEntryMode,
@@ -27,7 +35,14 @@ export class CreateDraftDto {
   goalPrompt?: string | null;
 
   @IsOptional()
-  @IsEnum(['choose_type', 'describe', 'verify', 'participants', 'reports', 'schedule'])
+  @IsEnum([
+    'choose_type',
+    'describe',
+    'verify',
+    'participants',
+    'reports',
+    'schedule',
+  ])
   wizardStep?: WizardStep;
 }
 
@@ -41,6 +56,23 @@ class TopicDto {
 
   @IsOptional()
   order?: number;
+}
+
+class InvitationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  subject?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  header?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  body?: string;
 }
 
 export class UpdateDraftDto {
@@ -70,7 +102,14 @@ export class UpdateDraftDto {
   topics?: TopicDto[];
 
   @IsOptional()
-  @IsEnum(['choose_type', 'describe', 'verify', 'participants', 'reports', 'schedule'])
+  @IsEnum([
+    'choose_type',
+    'describe',
+    'verify',
+    'participants',
+    'reports',
+    'schedule',
+  ])
   wizardStep?: WizardStep;
 
   @IsOptional()
@@ -93,4 +132,33 @@ export class UpdateDraftDto {
   @IsOptional()
   @IsEnum(['draft', 'scheduled', 'ongoing', 'completed', 'archived'])
   status?: SessionStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  participantTitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  participantDescription?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  welcomeMessage?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  anonymous?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InvitationDto)
+  invitation?: InvitationDto;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  engagementMetrics?: string[];
 }

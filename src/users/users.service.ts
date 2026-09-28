@@ -26,17 +26,25 @@ export class UsersService {
     const roleNameById = new Map(roleDocs.map((r) => [String(r._id), r.name]));
 
     return {
-      items: userDocs.map((u) => this.toOrgUser(u, roleNameById.get(String(u.roleId)) ?? 'Unknown')),
+      items: userDocs.map((u) =>
+        this.toOrgUser(u, roleNameById.get(String(u.roleId)) ?? 'Unknown'),
+      ),
     };
   }
 
-  async assignRole(orgId: string, userId: string, roleId: string): Promise<OrgUser> {
+  async assignRole(
+    orgId: string,
+    userId: string,
+    roleId: string,
+  ): Promise<OrgUser> {
     if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(roleId)) {
       throw new BadRequestException('Invalid user or role id');
     }
 
     const orgObjectId = new Types.ObjectId(orgId);
-    const role = await this.roles.findOne({ _id: roleId, orgId: orgObjectId }).lean();
+    const role = await this.roles
+      .findOne({ _id: roleId, orgId: orgObjectId })
+      .lean();
     if (!role) {
       throw new BadRequestException('Role not found in this organization');
     }
