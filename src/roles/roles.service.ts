@@ -6,7 +6,9 @@ import { Role, RoleDocument } from '../schemas/role.schema';
 
 @Injectable()
 export class RolesService {
-  constructor(@InjectModel(Role.name) private readonly roles: Model<RoleDocument>) {}
+  constructor(
+    @InjectModel(Role.name) private readonly roles: Model<RoleDocument>,
+  ) {}
 
   async list(orgId: string): Promise<{ items: RoleDto[] }> {
     const docs = await this.roles

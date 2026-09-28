@@ -1,7 +1,18 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { ResponsesService } from './responses.service';
 
@@ -33,6 +44,10 @@ export class ResponsesController {
     @Param('id') id: string,
     @Body() dto: SubmitResponseDto,
   ) {
-    return this.responses.submit(id, { userId: req.user.userId, orgId: req.user.orgId }, dto);
+    return this.responses.submit(
+      id,
+      { userId: req.user.userId, orgId: req.user.orgId },
+      dto,
+    );
   }
 }

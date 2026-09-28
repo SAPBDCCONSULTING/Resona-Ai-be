@@ -166,7 +166,10 @@ export class AiService {
       }
     }
     return {
-      assistantMessage: this.fallbackAssistant(messages, input.pageHint ?? null),
+      assistantMessage: this.fallbackAssistant(
+        messages,
+        input.pageHint ?? null,
+      ),
       source: 'heuristic',
     };
   }
@@ -323,7 +326,9 @@ export class AiService {
       choices?: { message?: { content?: string } }[];
     };
     const raw = data.choices?.[0]?.message?.content ?? '[]';
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim()) as string[];
+    const parsed = JSON.parse(
+      raw.replace(/```json|```/g, '').trim(),
+    ) as string[];
     return parsed.slice(0, 5).map((title, i) => ({
       id: randomUUID(),
       title: String(title),
@@ -476,7 +481,8 @@ export class AiService {
 
     if (!extracted.teamSize) {
       return {
-        assistantMessage: 'Got it. Roughly how many people are on the team for this session?',
+        assistantMessage:
+          'Got it. Roughly how many people are on the team for this session?',
         draft: {
           ...emptyDraft(),
           goalPrompt: extracted.goal,

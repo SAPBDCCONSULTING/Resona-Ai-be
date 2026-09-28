@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import type { PermissionKey } from '@pulsefeedback/shared';
-import { Organization, OrganizationDocument } from '../schemas/organization.schema';
+import {
+  Organization,
+  OrganizationDocument,
+} from '../schemas/organization.schema';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { User, UserDocument } from '../schemas/user.schema';
 import {
@@ -93,13 +96,18 @@ export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
 
   constructor(
-    @InjectModel(Organization.name) private readonly orgs: Model<OrganizationDocument>,
+    @InjectModel(Organization.name)
+    private readonly orgs: Model<OrganizationDocument>,
     @InjectModel(Role.name) private readonly roles: Model<RoleDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
-    @InjectModel(Session.name) private readonly sessions: Model<SessionDocument>,
-    @InjectModel(Campaign.name) private readonly campaigns: Model<CampaignDocument>,
-    @InjectModel(Contact.name) private readonly contacts: Model<ContactDocument>,
-    @InjectModel(ContactGroup.name) private readonly groups: Model<ContactGroupDocument>,
+    @InjectModel(Session.name)
+    private readonly sessions: Model<SessionDocument>,
+    @InjectModel(Campaign.name)
+    private readonly campaigns: Model<CampaignDocument>,
+    @InjectModel(Contact.name)
+    private readonly contacts: Model<ContactDocument>,
+    @InjectModel(ContactGroup.name)
+    private readonly groups: Model<ContactGroupDocument>,
     @InjectModel(ReportTemplate.name)
     private readonly templates: Model<ReportTemplateDocument>,
     @InjectModel(SessionTemplate.name)
@@ -200,7 +208,7 @@ export class SeedService implements OnModuleInit {
       locale: 'en',
     });
 
-    await this.ensureDemoUsers(org._id as Types.ObjectId, passwordHash);
+    await this.ensureDemoUsers(org._id, passwordHash);
     await this.ensureOrgDirectory(String(org._id));
 
     await this.sessions.insertMany([
@@ -214,13 +222,19 @@ export class SeedService implements OnModuleInit {
         createdBy: admin._id,
         createdByName: admin.name,
         campaignId: null,
-        progress: { invited: 12, completed: 4, percent: 33, health: 'on_track' },
+        progress: {
+          invited: 12,
+          completed: 4,
+          percent: 33,
+          health: 'on_track',
+        },
         favorite: true,
         topics: [
           { id: 't1', title: 'First-week experience', order: 1 },
           { id: 't2', title: 'Belonging & support', order: 2 },
         ],
-        goalPrompt: 'Understand how new hires feel supported in their first 30 days.',
+        goalPrompt:
+          'Understand how new hires feel supported in their first 30 days.',
         wizardStep: 'schedule',
         entryMode: 'blank',
       },
@@ -234,7 +248,12 @@ export class SeedService implements OnModuleInit {
         createdBy: admin._id,
         createdByName: admin.name,
         campaignId: null,
-        progress: { invited: 240, completed: 88, percent: 37, health: 'behind' },
+        progress: {
+          invited: 240,
+          completed: 88,
+          percent: 37,
+          health: 'behind',
+        },
         favorite: false,
         topics: [
           { id: 't1', title: 'Loyalty drivers', order: 1 },
@@ -246,8 +265,8 @@ export class SeedService implements OnModuleInit {
       },
     ]);
 
-    await this.ensureEmployeeAssignments(org._id as Types.ObjectId);
-    await this.ensureDemoCampaign(org._id as Types.ObjectId);
+    await this.ensureEmployeeAssignments(org._id);
+    await this.ensureDemoCampaign(org._id);
 
     this.logger.log(
       'Seeded Resona AI org — admin@resonaai.local / employee@resonaai.local / analyst@resonaai.local (password123)',
@@ -306,7 +325,9 @@ export class SeedService implements OnModuleInit {
 
     const employeeRole = await this.roles.findOneAndUpdate(
       { orgId, name: 'Employee' },
-      { $setOnInsert: { orgId, name: 'Employee', permissions: EMPLOYEE_PERMS } },
+      {
+        $setOnInsert: { orgId, name: 'Employee', permissions: EMPLOYEE_PERMS },
+      },
       { upsert: true, new: true },
     );
     const analystRole = await this.roles.findOneAndUpdate(
@@ -328,7 +349,7 @@ export class SeedService implements OnModuleInit {
           email: 'employee@resonaai.local',
           name: 'Resona Employee',
           passwordHash: hash,
-          roleId: employeeRole!._id,
+          roleId: employeeRole._id,
           locale: 'en',
         },
       },
@@ -343,7 +364,7 @@ export class SeedService implements OnModuleInit {
           email: 'analyst@resonaai.local',
           name: 'Resona Analyst',
           passwordHash: hash,
-          roleId: analystRole!._id,
+          roleId: analystRole._id,
           locale: 'en',
         },
       },
@@ -362,7 +383,10 @@ export class SeedService implements OnModuleInit {
       status: { $in: ['ongoing', 'scheduled'] },
     });
 
-    const defaultTopics: Record<string, { id: string; title: string; order: number }[]> = {
+    const defaultTopics: Record<
+      string,
+      { id: string; title: string; order: number }[]
+    > = {
       one_on_one: [
         { id: 't1', title: 'First-week experience', order: 1 },
         { id: 't2', title: 'Belonging & support', order: 2 },
@@ -374,7 +398,9 @@ export class SeedService implements OnModuleInit {
     };
 
     for (const session of open) {
-      const ids = Array.isArray(session.participantIds) ? [...session.participantIds] : [];
+      const ids = Array.isArray(session.participantIds)
+        ? [...session.participantIds]
+        : [];
       let dirty = false;
       if (!ids.includes(userId)) {
         ids.push(userId);
@@ -382,7 +408,8 @@ export class SeedService implements OnModuleInit {
         dirty = true;
       }
       if (!Array.isArray(session.topics) || session.topics.length === 0) {
-        session.topics = defaultTopics[String(session.type)] ?? defaultTopics.survey;
+        session.topics =
+          defaultTopics[String(session.type)] ?? defaultTopics.survey;
         dirty = true;
       }
       if (dirty) {
@@ -432,7 +459,8 @@ export class SeedService implements OnModuleInit {
       {
         orgId: null,
         name: 'Manager 1:1 outline',
-        description: 'Classic bi-weekly check-in covering wins, blockers, and growth.',
+        description:
+          'Classic bi-weekly check-in covering wins, blockers, and growth.',
         sessionType: 'one_on_one',
         goalPrompt: 'Build trust and surface blockers in a private 1:1.',
         tone: 'supportive',
@@ -445,7 +473,8 @@ export class SeedService implements OnModuleInit {
       {
         orgId: null,
         name: 'Engagement pulse survey',
-        description: 'Short recurring survey for loyalty, clarity, and workload.',
+        description:
+          'Short recurring survey for loyalty, clarity, and workload.',
         sessionType: 'survey',
         goalPrompt: 'Track engagement trends across the org each quarter.',
         tone: 'neutral',
@@ -517,7 +546,9 @@ export class SeedService implements OnModuleInit {
     await this.sessions.insertMany(
       [1, 2, 3].map((round) => {
         const startAt = new Date(now + (round - 1) * windowMs);
-        const endAt = new Date(startAt.getTime() + windowMs - 24 * 60 * 60 * 1000);
+        const endAt = new Date(
+          startAt.getTime() + windowMs - 24 * 60 * 60 * 1000,
+        );
         return {
           orgId,
           title: `Quarterly Engagement Pulse — Round ${round}`,
@@ -536,7 +567,8 @@ export class SeedService implements OnModuleInit {
           },
           favorite: false,
           topics,
-          goalPrompt: surveyTpl?.goalPrompt ?? 'Track engagement trends across the org.',
+          goalPrompt:
+            surveyTpl?.goalPrompt ?? 'Track engagement trends across the org.',
           wizardStep: 'schedule',
           entryMode: 'blank',
           tone: surveyTpl?.tone ?? 'neutral',

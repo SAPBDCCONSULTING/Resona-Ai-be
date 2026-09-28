@@ -57,12 +57,12 @@ export class ResponsesService {
 
     return sessions.map((s) => {
       const id = String(s._id);
-      const type = s.type as EmployeeAssignment['type'];
+      const type = s.type;
       return {
         id,
         title: s.title,
         type,
-        status: s.status as EmployeeAssignment['status'],
+        status: s.status,
         endAt: s.endAt instanceof Date ? s.endAt.toISOString() : null,
         topicsCount: Array.isArray(s.topics) ? s.topics.length : 0,
         completedByMe: done.has(id),
@@ -71,7 +71,10 @@ export class ResponsesService {
     });
   }
 
-  async getMine(sessionId: string, userId: string): Promise<SessionResponse | null> {
+  async getMine(
+    sessionId: string,
+    userId: string,
+  ): Promise<SessionResponse | null> {
     const doc = await this.responses
       .findOne({
         sessionId: new Types.ObjectId(sessionId),
@@ -108,7 +111,9 @@ export class ResponsesService {
       userId: new Types.ObjectId(actor.userId),
     });
     if (existing) {
-      throw new ConflictException('You already submitted a response for this session');
+      throw new ConflictException(
+        'You already submitted a response for this session',
+      );
     }
 
     let created: ResponseDocument;

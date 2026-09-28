@@ -13,7 +13,10 @@ import { Type } from 'class-transformer';
 import type { Request } from 'express';
 import type { SessionType } from '@pulsefeedback/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { AiService } from './ai.service';
 import { KnowledgeBaseService } from './knowledge/knowledge-base.service';
 

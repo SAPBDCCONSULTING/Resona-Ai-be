@@ -44,6 +44,9 @@ export type SessionBoardFilter =
 
 export type CampaignType = 'recurring' | 'linked' | 'independent';
 
+/** Only meaningful when type === 'recurring'. unlinked = same session repeats; linked = whole chain repeats each cycle. */
+export type CampaignRecurringMode = 'unlinked' | 'linked';
+
 export type HealthStatus = 'on_track' | 'behind' | 'done' | 'no_schedule';
 
 export type SessionSortBy = 'endAt' | 'startAt' | 'updatedAt' | 'title' | 'custom';
@@ -277,6 +280,12 @@ export interface SessionListResponse {
   };
 }
 
+export interface LinkedSequenceStep {
+  id: string;
+  title: string;
+  order: number;
+}
+
 export interface Campaign {
   id: string;
   orgId: string;
@@ -289,6 +298,12 @@ export interface Campaign {
   createdByName: string;
   /** ISO cadence hint for recurring campaigns, e.g. weekly | monthly | quarterly */
   cadence: string | null;
+  /** Only meaningful when type === 'recurring'. */
+  recurringMode: CampaignRecurringMode | null;
+  /** Brief used to AI-draft Step 1 of a linked campaign. */
+  masterPrompt: string | null;
+  /** Planned steps for a linked campaign (Step 1 -> report -> Step 2 -> ...). */
+  linkedSequence: LinkedSequenceStep[];
   sessionTemplateId: string | null;
   sessionsCompleted: number;
   sessionsTotal: number;
@@ -311,6 +326,12 @@ export interface CreateCampaignInput {
   title: string;
   type: CampaignType;
   cadence?: string | null;
+  /** Only meaningful when type === 'recurring'. */
+  recurringMode?: CampaignRecurringMode | null;
+  /** Only meaningful when type === 'linked'. */
+  masterPrompt?: string | null;
+  /** Only meaningful when type === 'linked'. */
+  linkedSequence?: LinkedSequenceStep[];
   sessionTemplateId?: string | null;
   /** How many child sessions to spawn on create (recurring default 3). */
   sessionCount?: number;
@@ -322,6 +343,9 @@ export interface CreateCampaignInput {
 export interface UpdateCampaignInput {
   title?: string;
   cadence?: string | null;
+  recurringMode?: CampaignRecurringMode | null;
+  masterPrompt?: string | null;
+  linkedSequence?: LinkedSequenceStep[];
   startAt?: string | null;
   endAt?: string | null;
   status?: SessionStatus;

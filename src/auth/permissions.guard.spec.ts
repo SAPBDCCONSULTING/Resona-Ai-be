@@ -30,7 +30,9 @@ describe('PermissionsGuard', () => {
   it('allows when user has required permission', () => {
     reflector.getAllAndOverride.mockReturnValue(['sessions:write']);
     expect(
-      guard.canActivate(mockContext({ permissions: ['sessions:read', 'sessions:write'] })),
+      guard.canActivate(
+        mockContext({ permissions: ['sessions:read', 'sessions:write'] }),
+      ),
     ).toBe(true);
   });
 
@@ -39,6 +41,9 @@ describe('PermissionsGuard', () => {
     expect(() =>
       guard.canActivate(mockContext({ permissions: ['sessions:read'] })),
     ).toThrow(ForbiddenException);
-    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(PERMISSIONS_KEY, expect.any(Array));
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(
+      PERMISSIONS_KEY,
+      expect.any(Array),
+    );
   });
 });

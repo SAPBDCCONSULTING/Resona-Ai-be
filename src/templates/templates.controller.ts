@@ -19,7 +19,10 @@ import { Type } from 'class-transformer';
 import type { Request } from 'express';
 import type { SessionType } from '@pulsefeedback/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from '../auth/permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import { TemplatesService } from './templates.service';
 
 class TopicDto {

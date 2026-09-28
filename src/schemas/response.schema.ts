@@ -14,7 +14,12 @@ class Answer {
 
 @Schema({ timestamps: true, collection: 'responses' })
 export class Response {
-  @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true,
+  })
   orgId!: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Session', required: true, index: true })

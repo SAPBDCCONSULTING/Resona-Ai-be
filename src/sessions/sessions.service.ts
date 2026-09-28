@@ -42,7 +42,8 @@ export type Actor = {
 @Injectable()
 export class SessionsService {
   constructor(
-    @InjectModel(Session.name) private readonly sessions: Model<SessionDocument>,
+    @InjectModel(Session.name)
+    private readonly sessions: Model<SessionDocument>,
     private readonly config: ConfigService,
     private readonly contactsService: ContactsService,
   ) {}
@@ -66,7 +67,11 @@ export class SessionsService {
     }
 
     const sort = this.resolveSort(input.sortBy);
-    const docs = await this.sessions.find(mongoFilter).sort(sort).limit(limit).lean();
+    const docs = await this.sessions
+      .find(mongoFilter)
+      .sort(sort)
+      .limit(limit)
+      .lean();
     const items = docs.map((d) => this.toDto(d));
 
     return {
@@ -86,10 +91,14 @@ export class SessionsService {
     return this.toDto(doc);
   }
 
-  async createDraft(actor: Actor, dto: CreateDraftDto): Promise<FeedbackSession> {
+  async createDraft(
+    actor: Actor,
+    dto: CreateDraftDto,
+  ): Promise<FeedbackSession> {
     const entryMode: CreateEntryMode = dto.entryMode ?? 'blank';
     const wizardStep: WizardStep =
-      dto.wizardStep ?? (entryMode === 'quick_create' ? 'schedule' : 'choose_type');
+      dto.wizardStep ??
+      (entryMode === 'quick_create' ? 'schedule' : 'choose_type');
 
     const doc = await this.sessions.create({
       orgId: new Types.ObjectId(actor.orgId),
@@ -122,9 +131,14 @@ export class SessionsService {
     return this.toDto(doc.toObject() as unknown as Record<string, unknown>);
   }
 
-  async updateDraft(orgId: string, id: string, dto: UpdateDraftDto): Promise<FeedbackSession> {
+  async updateDraft(
+    orgId: string,
+    id: string,
+    dto: UpdateDraftDto,
+  ): Promise<FeedbackSession> {
     const updates: Record<string, unknown> = {};
-    if (dto.title !== undefined) updates.title = dto.title.trim() || 'Untitled session';
+    if (dto.title !== undefined)
+      updates.title = dto.title.trim() || 'Untitled session';
     if (dto.type !== undefined) updates.type = dto.type;
     if (dto.goalPrompt !== undefined) updates.goalPrompt = dto.goalPrompt;
     if (dto.tone !== undefined) updates.tone = dto.tone;
@@ -134,9 +148,12 @@ export class SessionsService {
       updates.participantIds = dto.participantIds;
       updates['progress.invited'] = dto.participantIds.length;
     }
-    if (dto.reportTemplateId !== undefined) updates.reportTemplateId = dto.reportTemplateId;
-    if (dto.startAt !== undefined) updates.startAt = dto.startAt ? new Date(dto.startAt) : null;
-    if (dto.endAt !== undefined) updates.endAt = dto.endAt ? new Date(dto.endAt) : null;
+    if (dto.reportTemplateId !== undefined)
+      updates.reportTemplateId = dto.reportTemplateId;
+    if (dto.startAt !== undefined)
+      updates.startAt = dto.startAt ? new Date(dto.startAt) : null;
+    if (dto.endAt !== undefined)
+      updates.endAt = dto.endAt ? new Date(dto.endAt) : null;
     if (dto.status !== undefined) updates.status = dto.status;
     if (dto.participantTitle !== undefined) updates.participantTitle = dto.participantTitle;
     if (dto.participantDescription !== undefined) {
@@ -173,7 +190,8 @@ export class SessionsService {
       throw new BadRequestException('Title is required before launch');
     }
 
-    const startAt = body.startAt ?? existing.startAt ?? new Date().toISOString();
+    const startAt =
+      body.startAt ?? existing.startAt ?? new Date().toISOString();
     const endAt =
       body.endAt ??
       existing.endAt ??
@@ -299,8 +317,11 @@ export class SessionsService {
       health: 'no_schedule' as const,
     };
     const createdAt =
-      d.createdAt instanceof Date ? d.createdAt.toISOString() : new Date().toISOString();
-    const updatedAt = d.updatedAt instanceof Date ? d.updatedAt.toISOString() : createdAt;
+      d.createdAt instanceof Date
+        ? d.createdAt.toISOString()
+        : new Date().toISOString();
+    const updatedAt =
+      d.updatedAt instanceof Date ? d.updatedAt.toISOString() : createdAt;
 
     return {
       id: String(d._id),
@@ -316,9 +337,12 @@ export class SessionsService {
       progress,
       favorite: Boolean(d.favorite),
       participantCount: progress.invited,
-      topics: Array.isArray(d.topics) ? (d.topics as FeedbackSession['topics']) : [],
+      topics: Array.isArray(d.topics)
+        ? (d.topics as FeedbackSession['topics'])
+        : [],
       goalPrompt: (d.goalPrompt as string | null) ?? null,
-      wizardStep: (d.wizardStep as FeedbackSession['wizardStep']) ?? 'choose_type',
+      wizardStep:
+        (d.wizardStep as FeedbackSession['wizardStep']) ?? 'choose_type',
       entryMode: (d.entryMode as FeedbackSession['entryMode']) ?? 'blank',
       tone: (d.tone as string | null) ?? null,
       reportTemplateId: (d.reportTemplateId as string | null) ?? null,
