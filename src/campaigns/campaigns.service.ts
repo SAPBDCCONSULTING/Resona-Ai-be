@@ -31,6 +31,23 @@ import {
   UpdateCampaignDto,
 } from './dto/campaign.dto';
 
+/**
+ * Launched campaigns (stored as scheduled/ongoing) follow their start/end window.
+ * Drafts, archived and already-completed campaigns keep their stored status.
+ */
+function deriveScheduleStatus<S extends string>(
+  startMs: number | null,
+  endMs: number | null,
+  stored: S,
+): S | 'scheduled' | 'ongoing' | 'completed' {
+  if (stored !== 'scheduled' && stored !== 'ongoing') return stored;
+  if (startMs === null || endMs === null) return stored;
+  const now = Date.now();
+  if (now >= endMs) return 'completed';
+  if (now >= startMs) return 'ongoing';
+  return 'scheduled';
+}
+
 export type Actor = {
   userId: string;
   orgId: string;
@@ -257,11 +274,23 @@ export class CampaignsService {
       detail.endAt ??
       new Date(Date.now() + detail.sessionsTotal * 14 * 24 * 60 * 60 * 1000).toISOString();
 
+    const startMs = new Date(startAt).getTime();
+    const endMs = new Date(endAt).getTime();
+    if (Number.isNaN(startMs)) throw new BadRequestException('Start date/time is invalid');
+    if (Number.isNaN(endMs)) throw new BadRequestException('End date/time is invalid');
+    if (endMs <= startMs) {
+      throw new BadRequestException('End date/time must be after start date/time');
+    }
+    if (dto.endAt && endMs <= Date.now()) {
+      throw new BadRequestException('End date/time must be in the future');
+    }
+    const launchStatus = deriveScheduleStatus(startMs, endMs, 'ongoing');
+
     await this.campaigns.updateOne(
       { _id: id, orgId: new Types.ObjectId(orgId) },
       {
         $set: {
-          status: 'ongoing',
+          status: launchStatus,
           startAt: new Date(startAt),
           endAt: new Date(endAt),
           health: 'on_track',
@@ -279,7 +308,7 @@ export class CampaignsService {
       const s = childSessions[i];
       const sStart = new Date(base + i * windowMs);
       const sEnd = new Date(sStart.getTime() + windowMs - 24 * 60 * 60 * 1000);
-      s.status = i === 0 ? 'ongoing' : 'scheduled';
+      s.status = i === 0 && launchStatus !== 'scheduled' ? 'ongoing' : 'scheduled';
       s.startAt = sStart;
       s.endAt = sEnd;
       s.progress = {
@@ -329,7 +358,11 @@ export class CampaignsService {
       orgId: String(d.orgId),
       title: String(d.title),
       type: d.type as CampaignDto['type'],
-      status: d.status as CampaignDto['status'],
+      status: deriveScheduleStatus(
+        d.startAt instanceof Date ? d.startAt.getTime() : null,
+        d.endAt instanceof Date ? d.endAt.getTime() : null,
+        d.status as CampaignDto['status'],
+      ),
       startAt: d.startAt instanceof Date ? d.startAt.toISOString() : null,
       endAt: d.endAt instanceof Date ? d.endAt.toISOString() : null,
       createdBy: String(d.createdBy),
