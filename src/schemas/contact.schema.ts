@@ -19,6 +19,30 @@ export class Contact {
   @Prop({ required: true, trim: true, lowercase: true, index: true })
   email!: string;
 
+  // The five profile fields are required by CreateContactDto, not here: seeded and
+  // CSV-imported contacts may not have them yet and must still be storable.
+  @Prop({ type: String, default: null, trim: true })
+  designation!: string | null;
+
+  @Prop({ type: String, default: null, trim: true })
+  timezone!: string | null;
+
+  @Prop({ type: String, default: null, trim: true })
+  city!: string | null;
+
+  @Prop({ type: String, default: null, trim: true })
+  country!: string | null;
+
+  @Prop({ type: String, default: null, trim: true })
+  gender!: string | null;
+
+  // Optional. Kept as "YYYY-MM-DD" text, not a Date, so no timezone can shift the day.
+  @Prop({ type: String, default: null, trim: true })
+  dateOfBirth!: string | null;
+
+  @Prop({ type: String, default: null, trim: true })
+  preferredLanguage!: string | null;
+
   @Prop({ type: String, default: null })
   department!: string | null;
 
