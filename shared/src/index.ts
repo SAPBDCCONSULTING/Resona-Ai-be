@@ -428,12 +428,86 @@ export function wizardStepPath(sessionId: string, step: WizardStep): string {
   return `/sessions/create/${sessionId}/${step}`;
 }
 
+/** Stored gender values — the dashboard form and the API both validate against this list. */
+export const CONTACT_GENDERS = ['female', 'male', 'non_binary', 'prefer_not_to_say'] as const;
+
+export type ContactGender = (typeof CONTACT_GENDERS)[number];
+
+export const CONTACT_GENDER_LABELS: Record<ContactGender, string> = {
+  female: 'Female',
+  male: 'Male',
+  non_binary: 'Non-binary',
+  prefer_not_to_say: 'Prefer not to say',
+};
+
+/** IANA identifiers look like "Area/Location" (e.g. Asia/Kolkata); "UTC" is the one bare name allowed. */
+export const IANA_TIMEZONE_PATTERN = /^(UTC|[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+)$/;
+
+/** Preferred-language options, stored by their ISO 639-1 code. English first, then A–Z. */
+export const CONTACT_LANGUAGE_LABELS = {
+  en: 'English',
+  ar: 'Arabic',
+  bn: 'Bengali',
+  zh: 'Chinese (Mandarin)',
+  nl: 'Dutch',
+  fr: 'French',
+  de: 'German',
+  gu: 'Gujarati',
+  hi: 'Hindi',
+  id: 'Indonesian',
+  it: 'Italian',
+  ja: 'Japanese',
+  kn: 'Kannada',
+  ko: 'Korean',
+  ml: 'Malayalam',
+  mr: 'Marathi',
+  pt: 'Portuguese',
+  pa: 'Punjabi',
+  ru: 'Russian',
+  es: 'Spanish',
+  ta: 'Tamil',
+  te: 'Telugu',
+  tr: 'Turkish',
+  ur: 'Urdu',
+} as const;
+
+export type ContactLanguage = keyof typeof CONTACT_LANGUAGE_LABELS;
+
+export const CONTACT_LANGUAGES = Object.keys(CONTACT_LANGUAGE_LABELS) as ContactLanguage[];
+
+/**
+ * A date of birth is a calendar date kept as "YYYY-MM-DD" text, never a timestamp,
+ * so it reads the same in every timezone. Valid means: a real date, 1900 or later,
+ * and not after today anywhere in the world (UTC+14 is the furthest-ahead zone).
+ */
+export function isValidDateOfBirth(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const real =
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  if (!real || year < 1900) return false;
+  const latestToday = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return value <= latestToday;
+}
+
 export interface Contact {
   id: string;
   orgId: string;
   name: string;
   email: string;
   department: string | null;
+  /** The five profile fields are required on create; null only on older or imported contacts. */
+  designation: string | null;
+  /** IANA identifier, e.g. "Asia/Kolkata". */
+  timezone: string | null;
+  city: string | null;
+  country: string | null;
+  gender: ContactGender | null;
+  /** Optional. Calendar date as "YYYY-MM-DD". */
+  dateOfBirth: string | null;
+  /** Optional. */
+  preferredLanguage: ContactLanguage | null;
   groupIds: string[];
   contactType: 'employee' | 'external';
   /** Linked login account, when one exists. Null until an account is created (future task). */
