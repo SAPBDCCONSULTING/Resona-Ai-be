@@ -200,6 +200,19 @@ export class Campaign {
   @Prop({ type: String, default: null })
   cadence!: string | null;
 
+  /** Campaign context. Null on campaigns created before these fields existed. */
+  @Prop({ type: String, default: null })
+  objective!: string | null;
+
+  @Prop({ type: String, default: null })
+  background!: string | null;
+
+  @Prop({ type: String, default: null })
+  targetAudience!: string | null;
+
+  @Prop({ type: String, default: null })
+  intendedDecision!: string | null;
+
   /** Only meaningful when type === 'recurring'. */
   @Prop({ type: String, enum: ['unlinked', 'linked'], default: null })
   recurringMode!: CampaignRecurringMode | null;
