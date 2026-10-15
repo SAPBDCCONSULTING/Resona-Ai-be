@@ -306,7 +306,7 @@ export class SeedService implements OnModuleInit {
     for (const c of legacyContacts) {
       const nextEmail = String(c.email).toLowerCase().replace(/@acme\.local$/i, '@resonaai.local');
       const clash = await this.contacts.findOne({
-        orgId: c.orgId ?? orgId,
+        orgId,
         email: nextEmail,
       });
       if (clash) {

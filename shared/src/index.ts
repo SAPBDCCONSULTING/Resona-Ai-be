@@ -291,6 +291,11 @@ export interface Campaign {
   orgId: string;
   title: string;
   type: CampaignType;
+  /** Campaign context. Null on campaigns created before these fields existed. */
+  objective: string | null;
+  background: string | null;
+  targetAudience: string | null;
+  intendedDecision: string | null;
   status: SessionStatus;
   startAt: string | null;
   endAt: string | null;
@@ -325,6 +330,10 @@ export interface CampaignListResponse {
 export interface CreateCampaignInput {
   title: string;
   type: CampaignType;
+  objective: string;
+  background?: string | null;
+  targetAudience?: string | null;
+  intendedDecision?: string | null;
   cadence?: string | null;
   /** Only meaningful when type === 'recurring'. */
   recurringMode?: CampaignRecurringMode | null;

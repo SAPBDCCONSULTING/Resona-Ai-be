@@ -48,6 +48,11 @@ function deriveScheduleStatus<S extends string>(
   return 'scheduled';
 }
 
+function trimOrNull(v: string | null | undefined): string | null {
+  const t = v?.trim();
+  return t ? t : null;
+}
+
 export type Actor = {
   userId: string;
   orgId: string;
@@ -98,6 +103,8 @@ export class CampaignsService {
   async create(actor: Actor, dto: CreateCampaignDto): Promise<CampaignDetail> {
     const title = dto.title.trim();
     if (!title) throw new BadRequestException('Title is required');
+    const objective = dto.objective.trim();
+    if (!objective) throw new BadRequestException('Campaign objective is required');
     if (dto.type === 'linked' && dto.linkedSequence?.some((s) => !s.title?.trim())) {
       throw new BadRequestException('Each linked step requires a title');
     }
@@ -149,6 +156,10 @@ export class CampaignsService {
       orgId: new Types.ObjectId(actor.orgId),
       title,
       type: dto.type,
+      objective,
+      background: trimOrNull(dto.background),
+      targetAudience: trimOrNull(dto.targetAudience),
+      intendedDecision: trimOrNull(dto.intendedDecision),
       status: 'draft',
       startAt: dto.startAt ? new Date(dto.startAt) : null,
       endAt: dto.endAt ? new Date(dto.endAt) : null,
@@ -358,6 +369,10 @@ export class CampaignsService {
       orgId: String(d.orgId),
       title: String(d.title),
       type: d.type as CampaignDto['type'],
+      objective: (d.objective as string | null) ?? null,
+      background: (d.background as string | null) ?? null,
+      targetAudience: (d.targetAudience as string | null) ?? null,
+      intendedDecision: (d.intendedDecision as string | null) ?? null,
       status: deriveScheduleStatus(
         d.startAt instanceof Date ? d.startAt.getTime() : null,
         d.endAt instanceof Date ? d.endAt.getTime() : null,
