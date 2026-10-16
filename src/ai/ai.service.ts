@@ -660,13 +660,13 @@ export class AiService {
     if (hit && last.trim()) {
       // Short answer grounded in top KB article
       const firstLine = hit.body.split('\n')[0].slice(0, 220);
-      return `${firstLine} Open ${hit.title === 'Campaigns' ? 'Campaigns' : 'Sessions'} from the sidebar if you want to act on this.`;
+      return `${firstLine} Open ${hit.title === 'Programs' ? 'Programs' : 'Sessions'} from the sidebar if you want to act on this.`;
     }
     if (/session|1:1|survey|topic/i.test(last)) {
       return 'To create a session, go to Sessions → New, pick 1:1 or Survey, then use the Describe Session coach for goal, team size, and tone.';
     }
-    if (/campaign/i.test(last)) {
-      return 'Open Campaigns from the sidebar to create Recurring, Linked, or Independent campaigns that wrap multiple sessions.';
+    if (/program|campaign/i.test(last)) {
+      return 'Open Programs from the sidebar to create Recurring, Linked, or Independent programs that wrap multiple sessions.';
     }
     if (/contact|participant|invite/i.test(last)) {
       return 'Manage people under Contacts, then add them on the Select Participants step when creating a session.';
@@ -678,7 +678,7 @@ export class AiService {
       return 'Company profile, users, roles, and AI guardrails live under Settings.';
     }
     const where = pageHint ? ` You are on ${pageHint}.` : '';
-    return `Hi — I am Resona's assistant.${where} Ask about sessions, campaigns, contacts, templates, or settings.`;
+    return `Hi — I am Resona's assistant.${where} Ask about sessions, programs, contacts, templates, or settings.`;
   }
 
   private async discussionFromOpenAi(

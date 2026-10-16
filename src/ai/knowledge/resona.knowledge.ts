@@ -24,7 +24,7 @@ export const RESONA_KNOWLEDGE_BASE: KbArticle[] = [
     title: 'What Resona AI is',
     surfaces: ['assistant', 'describe'],
     keywords: ['resona', 'what is', 'product', 'platform', 'feedback'],
-    body: `Resona AI is an HR feedback platform. Leaders create Sessions (1:1 discussions or surveys), invite employees, collect responses, and review progress on a board. Campaigns can group multiple sessions. There are no Focus Groups in this product.`,
+    body: `Resona AI is an HR feedback platform. Leaders create Sessions (1:1 discussions or surveys), invite employees, collect responses, and review progress on a board. Programs can group multiple sessions. There are no Focus Groups in this product.`,
   },
   {
     id: 'session-types',
@@ -116,17 +116,17 @@ On agenda complete, summaries become the Response and board progress updates.`,
   },
   {
     id: 'campaigns',
-    title: 'Campaigns',
+    title: 'Programs',
     surfaces: ['assistant'],
-    keywords: ['campaign', 'recurring', 'linked', 'independent'],
-    body: `Campaigns orchestrate sessions: independent, linked, or recurring. They are not a session type. Open Campaigns in the sidebar.`,
+    keywords: ['program', 'programs', 'campaign', 'recurring', 'linked', 'independent'],
+    body: `Programs orchestrate sessions: independent, linked, or recurring. They are not a session type. Open Programs in the sidebar.`,
   },
   {
     id: 'navigation',
     title: 'Dashboard navigation',
     surfaces: ['assistant'],
     keywords: ['where', 'how do i', 'settings', 'templates', 'contacts', 'sidebar'],
-    body: `Sidebar: Today, Sessions, Campaigns, Contacts, Templates, Settings.
+    body: `Sidebar: Today, Sessions, Programs, Contacts, Templates, Settings.
 Create session: Sessions → New. Templates stores session outlines and report templates. Settings holds org profile, users, roles, AI guardrails.`,
   },
   {
