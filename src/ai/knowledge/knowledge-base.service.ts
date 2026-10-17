@@ -25,6 +25,20 @@ export class KnowledgeBaseService {
    * Always includes core articles for the surface (cap ~8).
    */
   retrieve(surface: KbSurface, query?: string | null, limit = 8): KbArticle[] {
+    return this.retrieveScored(surface, query, limit).map((s) => s.article);
+  }
+
+  /**
+   * Same ranking as retrieve(), but also exposes each article's score so a
+   * caller can tell a genuinely keyword-grounded match from a bare base-score
+   * fallback (no real evidence for this specific query) and respond accordingly
+   * instead of presenting a weak match as if it were a confident answer.
+   */
+  retrieveScored(
+    surface: KbSurface,
+    query?: string | null,
+    limit = 8,
+  ): { article: KbArticle; score: number }[] {
     const pool = articlesForSurface(surface);
     const q = (query ?? '').toLowerCase();
     const scored = pool.map((article) => {
@@ -42,7 +56,7 @@ export class KnowledgeBaseService {
       return { article, score };
     });
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, limit).map((s) => s.article);
+    return scored.slice(0, limit);
   }
 
   formatContext(articles: KbArticle[]): string {

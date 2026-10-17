@@ -17,13 +17,21 @@ import {
   type OrgAiGuardrails,
 } from './knowledge/knowledge-base.service';
 
+/**
+ * A conversation message carrying which topic it belongs to, when known.
+ * This is purely internal plumbing between ConversationsService and AiService
+ * (never sent over HTTP as-is), so widening it here doesn't touch any public
+ * API or frontend contract.
+ */
+export type DiscussionMessage = SessionChatMessage & { topicId?: string | null };
+
 export type EmployeeDiscussionContext = {
   title: string;
   goalPrompt: string | null;
   tone: string | null;
   topics: SessionTopic[];
   currentTopicIndex: number;
-  messages: SessionChatMessage[];
+  messages: DiscussionMessage[];
   orgId?: string | null;
 };
 
@@ -37,6 +45,18 @@ export type EmployeeDiscussionTurnResult = {
 
 @Injectable()
 export class AiService {
+  /**
+   * Minimum retrieveScored() score to treat a KB article as real evidence for
+   * the assistant's fallback path, not just "eligible for this surface."
+   * Base score is 1; a single matched keyword adds 3. So 4 means at least one
+   * genuine keyword hit occurred for this specific query.
+   */
+  private static readonly MIN_ASSISTANT_RELEVANCE_SCORE = 4;
+
+  /** Documented response when neither a blocked-topic nor a grounded match applies. */
+  private static readonly UNVERIFIED_FALLBACK =
+    "I couldn't verify this from the approved knowledge base.";
+
   constructor(
     private readonly config: ConfigService,
     private readonly kb: KnowledgeBaseService,
@@ -56,7 +76,7 @@ export class AiService {
         // fall through to heuristic
       }
     }
-    return { topics: this.heuristicTopics(input), source: 'heuristic' };
+    return { topics: this.heuristicTopics(input, guardrails), source: 'heuristic' };
   }
 
   async chatDescribeTurn(
@@ -169,6 +189,7 @@ export class AiService {
       assistantMessage: this.fallbackAssistant(
         messages,
         input.pageHint ?? null,
+        guardrails,
       ),
       source: 'heuristic',
     };
@@ -239,7 +260,10 @@ export class AiService {
     }, one at a time. Let’s start with: “${first}”. What’s on your mind?`;
   }
 
-  private heuristicTopics(input: GenerateTopicsInput): SessionTopic[] {
+  private heuristicTopics(
+    input: GenerateTopicsInput,
+    guardrails: OrgAiGuardrails,
+  ): SessionTopic[] {
     const goal = (input.goalPrompt || '').trim();
     const tone = input.tone || 'supportive';
     const typeLabel = input.type === 'survey' ? 'Survey' : '1:1';
@@ -282,7 +306,31 @@ export class AiService {
       seeds.push('What support would feel most useful');
     }
 
-    return seeds.slice(0, 5).map((title, i) => ({
+    // Deterministically drop any seed that knowingly mentions a configured
+    // blocked topic. Narrow, literal substring match only — this must never
+    // become a broad/semantic filter that could remove unrelated valid topics.
+    const blocked = guardrails.blockedTopics
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    const isSafe = (text: string) =>
+      !blocked.some((b) => text.toLowerCase().includes(b));
+    let safeSeeds = seeds.filter(isSafe);
+
+    // Top up with goal-independent filler if filtering left too few. These
+    // never echo user/goal text, so they can't themselves carry blocked
+    // content — they exist purely so a blocked term never silently shrinks
+    // the topic count below what the UI expects.
+    if (safeSeeds.length < 5) {
+      const filler = [
+        'What is working well',
+        'Where friction shows up',
+        'Actions that would help next',
+        'Any other feedback to share',
+      ].filter((f) => isSafe(f) && !safeSeeds.includes(f));
+      safeSeeds = [...safeSeeds, ...filler];
+    }
+
+    return safeSeeds.slice(0, 5).map((title, i) => ({
       id: randomUUID(),
       title,
       order: i + 1,
@@ -413,7 +461,19 @@ export class AiService {
     return null;
   }
 
-  /** Local scripted coach when OpenAI is unavailable. */
+  /**
+   * Local scripted coach when OpenAI is unavailable.
+   *
+   * Deliberately not given guardrails/blockedTopics this increment. Its
+   * questions are fixed, generic strings (goal → team size → tone → optional
+   * focus) that never probe for specific content, so — unlike an LLM — it
+   * cannot be steered into soliciting a blocked topic in the first place.
+   * The only way to enforce blockedTopics here would be to inspect and
+   * potentially reject the user's own free-typed goal text, which changes
+   * the required-field sequence and readyToGenerate behavior this task
+   * explicitly says to preserve. Reporting this rather than guessing at a
+   * workaround; see the Increment 2 report for the exact tradeoff.
+   */
   private fallbackCoach(
     messages: SessionChatMessage[],
     type: SessionChatTurnInput['type'],
@@ -649,19 +709,47 @@ export class AiService {
     return text || null;
   }
 
+  /**
+   * Scripted assistant used when OpenAI is unavailable. This is pure string
+   * matching, not a model — it cannot "interpret" instructions, so blocked
+   * topics are enforced as a plain substring check against the org's own
+   * configured list, not influenced by any surrounding phrasing the user adds.
+   *
+   * Priority: blocked topic (never answer) → genuinely KB-grounded answer
+   * (real keyword evidence, not just the base eligibility score) → the
+   * existing scripted intent patterns (kept as-is, still useful for queries
+   * that don't happen to hit a KB keyword, e.g. singular "template") →
+   * the documented "couldn't verify" line for anything else, instead of
+   * silently guessing.
+   */
   private fallbackAssistant(
     messages: SessionChatMessage[],
     pageHint: string | null,
+    guardrails: OrgAiGuardrails,
   ): string {
     const lastRaw =
       [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
     const last = lastRaw.toLowerCase();
-    const hit = this.kb.retrieve('assistant', lastRaw, 1)[0];
-    if (hit && last.trim()) {
-      // Short answer grounded in top KB article
-      const firstLine = hit.body.split('\n')[0].slice(0, 220);
-      return `${firstLine} Open ${hit.title === 'Campaigns' ? 'Campaigns' : 'Sessions'} from the sidebar if you want to act on this.`;
+
+    if (!last.trim()) {
+      const where = pageHint ? ` You are on ${pageHint}.` : '';
+      return `Hi — I am Resona's assistant.${where} Ask about sessions, campaigns, contacts, templates, or settings.`;
     }
+
+    const blockedHit = guardrails.blockedTopics.find(
+      (topic) => topic.trim() && last.includes(topic.trim().toLowerCase()),
+    );
+    if (blockedHit) {
+      return `I can't help with that — this organization has restricted the assistant from discussing "${blockedHit}".`;
+    }
+
+    const [topMatch] = this.kb.retrieveScored('assistant', lastRaw, 1);
+    if (topMatch && topMatch.score >= AiService.MIN_ASSISTANT_RELEVANCE_SCORE) {
+      // Short answer grounded in a genuinely keyword-matched KB article.
+      const firstLine = topMatch.article.body.split('\n')[0].slice(0, 220);
+      return `${firstLine} Open ${topMatch.article.title === 'Campaigns' ? 'Campaigns' : 'Sessions'} from the sidebar if you want to act on this.`;
+    }
+
     if (/session|1:1|survey|topic/i.test(last)) {
       return 'To create a session, go to Sessions → New, pick 1:1 or Survey, then use the Describe Session coach for goal, team size, and tone.';
     }
@@ -677,8 +765,8 @@ export class AiService {
     if (/setting|role|permission|org/i.test(last)) {
       return 'Company profile, users, roles, and AI guardrails live under Settings.';
     }
-    const where = pageHint ? ` You are on ${pageHint}.` : '';
-    return `Hi — I am Resona's assistant.${where} Ask about sessions, campaigns, contacts, templates, or settings.`;
+
+    return AiService.UNVERIFIED_FALLBACK;
   }
 
   private async discussionFromOpenAi(
@@ -789,14 +877,31 @@ export class AiService {
     };
   }
 
-  /** Scripted facilitator when OpenAI is unavailable. */
+  /**
+   * Scripted facilitator when OpenAI is unavailable.
+   *
+   * Scopes "how much has the employee said" to the CURRENT topic only, via
+   * each message's topicId. Previously this counted the last 3 user messages
+   * across the whole conversation regardless of which topic they belonged to —
+   * on the first reply to a new topic, leftover messages from the just-finished
+   * topic could pad the count to 2+, immediately marking the brand-new topic
+   * complete and folding the previous topic's content into its summary. That
+   * silently skipped topics and fabricated summaries blending unrelated answers.
+   * If no message in the window carries topic tagging at all (unexpected, but
+   * guard against it rather than break), fall back to the old whole-window
+   * behavior instead of treating a tagged-but-empty result as "nothing said yet."
+   */
   private fallbackDiscussion(
     topics: SessionTopic[],
     index: number,
-    messages: SessionChatMessage[],
+    messages: DiscussionMessage[],
   ): EmployeeDiscussionTurnResult {
     const topic = topics[index];
-    const substantive = messages
+    const hasTopicTags = messages.some((m) => m.topicId != null);
+    const scoped = hasTopicTags
+      ? messages.filter((m) => m.topicId === topic.id)
+      : messages;
+    const substantive = scoped
       .filter((m) => m.role === 'user')
       .slice(-3)
       .map((m) => m.content.trim())

@@ -141,6 +141,7 @@ export class ConversationsService {
       messages: convo.messages.map((m) => ({
         role: m.role,
         content: m.content,
+        topicId: m.topicId,
       })),
       orgId: actor.orgId,
     });

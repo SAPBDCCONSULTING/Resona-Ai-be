@@ -93,4 +93,33 @@ describe('KnowledgeBaseService', () => {
       expect(listed).toEqual(['custom', 'scores', 'summary', 'themes']);
     });
   });
+
+  describe('retrieveScored', () => {
+    it('gives a real keyword match a higher score than articles with no match', () => {
+      const kb = makeService();
+      // Explicit high limit: there are more than the default 8 assistant-surface
+      // articles, and this test needs every candidate present to compare against.
+      const results = kb.retrieveScored('assistant', 'tell me about campaigns', 20);
+      const campaigns = results.find((r) => r.article.id === 'campaigns')!;
+      const unrelated = results.find((r) => r.article.id === 'navigation')!;
+      expect(campaigns.score).toBeGreaterThan(unrelated.score);
+    });
+
+    it('reports only the base/core score when the query has no keyword evidence at all', () => {
+      const kb = makeService();
+      const results = kb.retrieveScored('assistant', 'completely unrelated query text');
+      // No article should score above base(1) + the always-on core boost(1).
+      for (const r of results) {
+        expect(r.score).toBeLessThanOrEqual(2);
+      }
+    });
+
+    it('retrieve() stays consistent with retrieveScored() — same order, articles only', () => {
+      const kb = makeService();
+      const query = 'how do I set up a survey campaign';
+      expect(kb.retrieve('assistant', query)).toEqual(
+        kb.retrieveScored('assistant', query).map((r) => r.article),
+      );
+    });
+  });
 });
