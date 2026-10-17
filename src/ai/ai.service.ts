@@ -721,7 +721,7 @@ export class AiService {
    * that don't happen to hit a KB keyword, e.g. singular "template") →
    * the documented "couldn't verify" line for anything else, instead of
    * silently guessing.
-   */
+   */  
   private fallbackAssistant(
     messages: SessionChatMessage[],
     pageHint: string | null,
@@ -733,41 +733,52 @@ export class AiService {
 
     if (!last.trim()) {
       const where = pageHint ? ` You are on ${pageHint}.` : '';
-      return `Hi — I am Resona's assistant.${where} Ask about sessions, campaigns, contacts, templates, or settings.`;
+      return `Hi — I am Resona's assistant.${where} Ask about sessions, programs, contacts, templates, or settings.`;
     }
 
     const blockedHit = guardrails.blockedTopics.find(
       (topic) => topic.trim() && last.includes(topic.trim().toLowerCase()),
     );
+
     if (blockedHit) {
       return `I can't help with that — this organization has restricted the assistant from discussing "${blockedHit}".`;
     }
 
     const [topMatch] = this.kb.retrieveScored('assistant', lastRaw, 1);
     if (topMatch && topMatch.score >= AiService.MIN_ASSISTANT_RELEVANCE_SCORE) {
-      // Short answer grounded in a genuinely keyword-matched KB article.
       const firstLine = topMatch.article.body.split('\n')[0].slice(0, 220);
-      return `${firstLine} Open ${topMatch.article.title === 'Campaigns' ? 'Campaigns' : 'Sessions'} from the sidebar if you want to act on this.`;
+      const section =
+        topMatch.article.title === 'Campaigns' ||
+        topMatch.article.title === 'Programs'
+          ? 'Programs'
+          : 'Sessions';
+
+      return `${firstLine} Open ${section} from the sidebar if you want to act on this.`;
     }
 
     if (/session|1:1|survey|topic/i.test(last)) {
       return 'To create a session, go to Sessions → New, pick 1:1 or Survey, then use the Describe Session coach for goal, team size, and tone.';
     }
-    if (/campaign/i.test(last)) {
-      return 'Open Campaigns from the sidebar to create Recurring, Linked, or Independent campaigns that wrap multiple sessions.';
+
+    if (/program|campaign/i.test(last)) {
+      return 'Open Programs from the sidebar to create Recurring, Linked, or Independent programs that wrap multiple sessions.';
     }
+
     if (/contact|participant|invite/i.test(last)) {
       return 'Manage people under Contacts, then add them on the Select Participants step when creating a session.';
     }
+
     if (/template/i.test(last)) {
       return 'Templates stores reusable session and report templates. Open Templates in the sidebar to browse or create one.';
     }
+
     if (/setting|role|permission|org/i.test(last)) {
       return 'Company profile, users, roles, and AI guardrails live under Settings.';
     }
 
     return AiService.UNVERIFIED_FALLBACK;
   }
+
 
   private async discussionFromOpenAi(
     apiKey: string,
@@ -959,3 +970,4 @@ function emptyDraft(): SessionChatDraft {
     teamSize: null,
   };
 }
+

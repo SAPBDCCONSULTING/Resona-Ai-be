@@ -169,7 +169,7 @@ describe('AiService', () => {
         messages: [{ role: 'user', content: 'What are campaigns?' }],
       });
       expect(result.source).toBe('heuristic');
-      expect(result.assistantMessage).toContain('Campaigns orchestrate sessions');
+      expect(result.assistantMessage).toContain('Programs orchestrate sessions');
       expect(result.assistantMessage).not.toBe(UNVERIFIED);
     });
 
