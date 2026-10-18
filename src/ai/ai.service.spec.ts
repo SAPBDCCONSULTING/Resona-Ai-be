@@ -4,6 +4,7 @@ import { AiService } from './ai.service';
 import { KnowledgeBaseService } from './knowledge/knowledge-base.service';
 import type { EmbeddingProvider } from './embedding/embedding-provider';
 import { KnowledgeChunkDocument } from '../schemas/knowledge-chunk.schema';
+import { KnowledgeCollectionDocument } from '../schemas/knowledge-collection.schema';
 import { KnowledgeSourceDocument } from '../schemas/knowledge-source.schema';
 import { OrgService } from '../org/org.service';
 
@@ -79,7 +80,14 @@ function makeOpenAiServiceWithConflict() {
   const { knowledgeSources, knowledgeChunks, sourceTitles } = makeConflictingKnowledgeModels();
   const service = new AiService(
     config,
-    new KnowledgeBaseService(orgService, knowledgeSources, knowledgeChunks, makeDisabledEmbeddings(), config),
+    new KnowledgeBaseService(
+      orgService,
+      knowledgeSources,
+      knowledgeChunks,
+      makeDisabledEmbeddings(),
+      config,
+      makeEmptyKnowledgeModel<KnowledgeCollectionDocument>(),
+    ),
   );
   return { service, sourceTitles };
 }
@@ -106,6 +114,7 @@ function makeFallbackService(org: { aiSystemPrompt?: string | null; blockedTopic
       makeEmptyKnowledgeModel<KnowledgeChunkDocument>(),
       makeDisabledEmbeddings(),
       config,
+      makeEmptyKnowledgeModel<KnowledgeCollectionDocument>(),
     ),
   );
 }
@@ -136,6 +145,7 @@ function makeOpenAiService(org: { aiSystemPrompt?: string | null; blockedTopics?
       makeEmptyKnowledgeModel<KnowledgeChunkDocument>(),
       makeDisabledEmbeddings(),
       config,
+      makeEmptyKnowledgeModel<KnowledgeCollectionDocument>(),
     ),
   );
 }
@@ -596,6 +606,36 @@ describe('AiService', () => {
         expect(topic.title.toLowerCase()).not.toContain('salary');
       }
     });
+
+    it('threads knowledgeCollectionIds through to both prompt building and citation lookup', async () => {
+      mockOpenAiContent(JSON.stringify(['Team communication', 'Growth opportunities']));
+      const service = makeOpenAiService();
+      const promptSpy = jest.spyOn(KnowledgeBaseService.prototype, 'buildTopicsSystemPrompt');
+      const citationsSpy = jest.spyOn(KnowledgeBaseService.prototype, 'getAssistantCitations');
+      const collectionId = new Types.ObjectId().toString();
+
+      await service.generateTopics(
+        { goalPrompt: 'team feedback', type: 'survey', knowledgeCollectionIds: [collectionId] },
+        'org1',
+      );
+
+      expect(promptSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ collectionIds: [collectionId] }),
+      );
+      expect(citationsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ surface: 'topics', collectionIds: [collectionId] }),
+      );
+    });
+
+    it('omits knowledgeCollectionIds (undefined) from both calls when no selection was made — preserves the pre-existing default (unscoped) behavior', async () => {
+      mockOpenAiContent(JSON.stringify(['Team communication', 'Growth opportunities']));
+      const service = makeOpenAiService();
+      const promptSpy = jest.spyOn(KnowledgeBaseService.prototype, 'buildTopicsSystemPrompt');
+
+      await service.generateTopics({ goalPrompt: 'team feedback', type: 'survey' }, 'org1');
+
+      expect(promptSpy).toHaveBeenCalledWith(expect.objectContaining({ collectionIds: undefined }));
+    });
   });
 
   describe('assistantChatTurn — citations from the real OpenAI path', () => {
@@ -713,6 +753,47 @@ describe('AiService', () => {
       expect(fetchSpy).toHaveBeenCalled(); // input was clean, so OpenAI was called
       expect(result.assistantMessage).not.toContain('salary bands'); // output was discarded
     });
+
+    it('threads knowledgeCollectionIds through to both prompt building and citation lookup', async () => {
+      mockOpenAiContent(
+        JSON.stringify({ assistantMessage: 'Tell me more.', draft: {}, readyToGenerate: false }),
+      );
+      const service = makeOpenAiService();
+      const promptSpy = jest.spyOn(KnowledgeBaseService.prototype, 'buildDescribeSystemPrompt');
+      const citationsSpy = jest.spyOn(KnowledgeBaseService.prototype, 'getAssistantCitations');
+      const collectionId = new Types.ObjectId().toString();
+
+      await service.chatDescribeTurn(
+        {
+          type: 'one_on_one',
+          messages: [{ role: 'user', content: 'Help me plan a 1:1' }],
+          knowledgeCollectionIds: [collectionId],
+        },
+        'org1',
+      );
+
+      expect(promptSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ collectionIds: [collectionId] }),
+      );
+      expect(citationsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ surface: 'describe', collectionIds: [collectionId] }),
+      );
+    });
+
+    it('omits knowledgeCollectionIds (undefined) when no selection was made — preserves the pre-existing default (unscoped) behavior', async () => {
+      mockOpenAiContent(
+        JSON.stringify({ assistantMessage: 'Tell me more.', draft: {}, readyToGenerate: false }),
+      );
+      const service = makeOpenAiService();
+      const promptSpy = jest.spyOn(KnowledgeBaseService.prototype, 'buildDescribeSystemPrompt');
+
+      await service.chatDescribeTurn(
+        { type: 'one_on_one', messages: [{ role: 'user', content: 'Help me plan a 1:1' }] },
+        'org1',
+      );
+
+      expect(promptSpy).toHaveBeenCalledWith(expect.objectContaining({ collectionIds: undefined }));
+    });
   });
 
   describe('employeeDiscussionTurn — guardrail enforcement around the real OpenAI call', () => {
@@ -740,6 +821,7 @@ describe('AiService', () => {
           makeEmptyKnowledgeModel<KnowledgeChunkDocument>(),
           makeDisabledEmbeddings(),
           config,
+          makeEmptyKnowledgeModel<KnowledgeCollectionDocument>(),
         ),
       );
     }

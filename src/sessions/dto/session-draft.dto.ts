@@ -1,7 +1,9 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
+  IsMongoId,
   IsOptional,
   IsString,
   MaxLength,
@@ -161,4 +163,18 @@ export class UpdateDraftDto {
   @IsArray()
   @IsString({ each: true })
   engagementMetrics?: string[];
+
+  /**
+   * Knowledge Base collection ids to scope Describe Session AI retrieval
+   * to. Structurally validated here only (must look like Mongo ids);
+   * org-ownership is re-validated at actual retrieval time, same pattern
+   * as every other client-supplied id in the knowledge module — an id
+   * that doesn't belong to this org simply contributes nothing, never a
+   * cross-org leak.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @IsMongoId({ each: true })
+  knowledgeCollectionIds?: string[];
 }

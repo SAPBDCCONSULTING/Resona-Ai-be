@@ -143,6 +143,16 @@ export class Session {
 
   @Prop({ type: [String], default: [] })
   engagementMetrics!: string[];
+
+  /**
+   * Knowledge Base collection ids (KnowledgeCollectionEntity._id, as plain
+   * strings — same convention as participantIds/reportTemplateId) the
+   * Describe Session AI coach/topic-generation scopes its retrieval to.
+   * Empty = unscoped (pre-existing default behavior). Never read by the
+   * live employee_discussion facilitator.
+   */
+  @Prop({ type: [String], default: [] })
+  knowledgeCollectionIds!: string[];
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);

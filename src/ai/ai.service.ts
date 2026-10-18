@@ -175,7 +175,21 @@ export class AiService {
     if (apiKey) {
       try {
         const topics = await this.fromOpenAi(apiKey, input, guardrails, orgId, roleId);
-        if (topics.length) return { topics, source: 'openai' };
+        if (topics.length) {
+          // Independently re-derived, never anything the model itself
+          // returned — same pattern as assistantChatTurn's citations.
+          // Scoped by the same knowledgeCollectionIds (if any) that
+          // fromOpenAi's buildTopicsSystemPrompt call used, so a citation
+          // can never reference evidence the selection would have excluded.
+          const citations = await this.kb.getAssistantCitations({
+            query: input.goalPrompt,
+            orgId,
+            roleId,
+            surface: 'topics',
+            collectionIds: input.knowledgeCollectionIds,
+          });
+          return { topics, source: 'openai', ...(citations.length ? { citations } : {}) };
+        }
       } catch (err) {
         this.logOpenAiFailure('generateTopics', err);
       }
@@ -217,6 +231,7 @@ export class AiService {
           guardrails,
           orgId,
           roleId,
+          input.knowledgeCollectionIds,
         );
         // Defense in depth: discard a response whose own free-form text
         // mentions a blocked topic, same as assistantChatTurn already does —
@@ -225,6 +240,21 @@ export class AiService {
         // a new state-machine branch.
         if (result && AiService.findBlockedTopic(result.assistantMessage, guardrails.blockedTopics)) {
           result = null;
+        }
+        if (result) {
+          // Independently re-derived, never anything the model itself
+          // returned — same pattern as assistantChatTurn's citations.
+          // Only attempted for the real OpenAI-success path: fallbackCoach
+          // below never queries the knowledge base, so it never has
+          // citations to attach.
+          const citations = await this.kb.getAssistantCitations({
+            query: lastUser,
+            orgId,
+            roleId,
+            surface: 'describe',
+            collectionIds: input.knowledgeCollectionIds,
+          });
+          if (citations.length) result = { ...result, citations };
         }
       } catch (err) {
         this.logOpenAiFailure('chatDescribeTurn', err);
@@ -275,6 +305,7 @@ export class AiService {
         },
         readyToGenerate: true,
         suggestions: [],
+        ...(result.citations?.length ? { citations: result.citations } : {}),
       };
     }
 
@@ -539,6 +570,7 @@ export class AiService {
       guardrails,
       orgId,
       roleId,
+      collectionIds: input.knowledgeCollectionIds,
     });
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -595,8 +627,15 @@ export class AiService {
     guardrails: OrgAiGuardrails,
     orgId?: string | null,
     roleId?: string | null,
+    knowledgeCollectionIds?: string[] | null,
   ): Promise<SessionChatTurnResult | null> {
-    const system = await this.kb.buildDescribeSystemPrompt({ query, guardrails, orgId, roleId });
+    const system = await this.kb.buildDescribeSystemPrompt({
+      query,
+      guardrails,
+      orgId,
+      roleId,
+      collectionIds: knowledgeCollectionIds,
+    });
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {

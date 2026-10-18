@@ -446,6 +446,9 @@ export class CampaignsService {
       engagementMetrics: Array.isArray(d.engagementMetrics)
         ? (d.engagementMetrics as string[])
         : [],
+      knowledgeCollectionIds: Array.isArray(d.knowledgeCollectionIds)
+        ? (d.knowledgeCollectionIds as string[])
+        : [],
       createdAt,
       updatedAt,
     };

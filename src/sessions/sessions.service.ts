@@ -126,6 +126,7 @@ export class SessionsService {
       anonymous: false,
       invitation: { subject: '', header: '', body: '' },
       engagementMetrics: [],
+      knowledgeCollectionIds: [],
     });
 
     return this.toDto(doc.toObject() as unknown as Record<string, unknown>);
@@ -162,6 +163,9 @@ export class SessionsService {
     if (dto.welcomeMessage !== undefined) updates.welcomeMessage = dto.welcomeMessage;
     if (dto.anonymous !== undefined) updates.anonymous = dto.anonymous;
     if (dto.engagementMetrics !== undefined) updates.engagementMetrics = dto.engagementMetrics;
+    if (dto.knowledgeCollectionIds !== undefined) {
+      updates.knowledgeCollectionIds = dto.knowledgeCollectionIds;
+    }
     if (dto.invitation !== undefined) {
       if (dto.invitation.subject !== undefined) updates['invitation.subject'] = dto.invitation.subject;
       if (dto.invitation.header !== undefined) updates['invitation.header'] = dto.invitation.header;
@@ -363,6 +367,9 @@ export class SessionsService {
       },
       engagementMetrics: Array.isArray(d.engagementMetrics)
         ? (d.engagementMetrics as string[])
+        : [],
+      knowledgeCollectionIds: Array.isArray(d.knowledgeCollectionIds)
+        ? (d.knowledgeCollectionIds as string[])
         : [],
       createdAt,
       updatedAt,

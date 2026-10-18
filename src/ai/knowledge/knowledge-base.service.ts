@@ -9,6 +9,10 @@ import {
   KnowledgeChunkDocument,
 } from '../../schemas/knowledge-chunk.schema';
 import {
+  KnowledgeCollectionEntity,
+  KnowledgeCollectionDocument,
+} from '../../schemas/knowledge-collection.schema';
+import {
   KnowledgeSource,
   KnowledgeSourceDocument,
 } from '../../schemas/knowledge-source.schema';
@@ -145,7 +149,46 @@ export class KnowledgeBaseService {
     @Inject(EMBEDDING_PROVIDER)
     private readonly embeddings: EmbeddingProvider,
     private readonly config: ConfigService,
+    @InjectModel(KnowledgeCollectionEntity.name)
+    private readonly collections: Model<KnowledgeCollectionDocument>,
   ) {}
+
+  /**
+   * Resolves client-supplied KnowledgeCollectionEntity ids (e.g. from a
+   * session draft's knowledgeCollectionIds) into the KnowledgeSource.category
+   * keys they govern, scoped to this exact org — never trusting an id
+   * without re-checking it belongs here, same pattern as every other
+   * client-supplied id in this module.
+   *
+   * Returns null when no scoping was requested (collectionIds is
+   * null/undefined/empty) — the caller should then apply no category
+   * filter at all, preserving the pre-existing default (unscoped)
+   * retrieval behavior. Returns an empty array when scoping WAS requested
+   * but none of the ids resolved to a real collection in this org — the
+   * caller should then fail closed (match nothing) rather than silently
+   * falling back to unscoped, so a selection always actually narrows
+   * results, never accidentally widens them.
+   */
+  private async resolveCollectionKeys(
+    orgObjectId: Types.ObjectId,
+    collectionIds?: string[] | null,
+  ): Promise<string[] | null> {
+    if (!collectionIds || collectionIds.length === 0) return null;
+    const objectIds: Types.ObjectId[] = [];
+    for (const id of collectionIds) {
+      try {
+        objectIds.push(new Types.ObjectId(id));
+      } catch {
+        // Malformed id — simply contributes nothing, never thrown back at the caller.
+      }
+    }
+    if (!objectIds.length) return [];
+    const docs = await this.collections
+      .find({ _id: { $in: objectIds }, orgId: orgObjectId })
+      .select('key')
+      .lean();
+    return [...new Set(docs.map((d) => d.key as string))];
+  }
 
   /** Configurable (KB_RETRIEVAL_TOP_K), clamped to [1, MAX_DOCUMENT_CHUNKS_CEILING]. */
   private retrievalTopK(): number {
@@ -179,6 +222,7 @@ export class KnowledgeBaseService {
     surface: KbSurface,
     query: string | null | undefined,
     roleId?: string | null,
+    collectionIds?: string[] | null,
   ): Promise<DocumentChunkMatch[]> {
     const q = query?.trim();
     if (!orgId || !q) return [];
@@ -189,6 +233,12 @@ export class KnowledgeBaseService {
     } catch {
       return [];
     }
+
+    // A requested-but-unresolvable collection selection (resolveCollectionKeys
+    // returns []) must fail closed, not fall back to unscoped — a selection
+    // always actually narrows results, per the "never decorative" requirement.
+    const collectionKeys = await this.resolveCollectionKeys(orgObjectId, collectionIds);
+    if (collectionKeys && collectionKeys.length === 0) return [];
 
     const now = new Date();
     const eligibilityFilters: Record<string, unknown>[] = [
@@ -211,8 +261,19 @@ export class KnowledgeBaseService {
         : { accessRoleIds: { $size: 0 } },
     );
 
+    const sourceQuery: Record<string, unknown> = {
+      orgId: orgObjectId,
+      status: 'published',
+      surfaces: surface,
+      $and: eligibilityFilters,
+    };
+    // null = no scoping requested, preserves the pre-existing default
+    // (unscoped) behavior exactly; a non-null, non-empty list narrows to
+    // only sources tagged with one of the selected collections' keys.
+    if (collectionKeys) sourceQuery.category = { $in: collectionKeys };
+
     const eligibleSources = await this.knowledgeSources
-      .find({ orgId: orgObjectId, status: 'published', surfaces: surface, $and: eligibilityFilters })
+      .find(sourceQuery)
       .select('_id title version category effectiveAt')
       .lean();
     if (!eligibleSources.length) return [];
@@ -463,27 +524,32 @@ export class KnowledgeBaseService {
   }
 
   /**
-   * Citations for the assistant surface's most recent answer. Independently
-   * re-derives the same evidence `buildAssistantSystemPrompt` already
-   * computed for this exact (orgId, query) pair, rather than trusting
-   * anything the model said — the model's own output JSON schema has no
-   * citation field, so there is no way for it to fabricate one here.
+   * Citations for a surface's most recent answer (assistant chat by
+   * default; also used by the Describe/topics authoring flow). Independently
+   * re-derives the same evidence the relevant prompt builder already
+   * computed for this exact (orgId, query, surface) pair, rather than
+   * trusting anything the model said — the model's own output JSON schema
+   * has no citation field, so there is no way for it to fabricate one here.
    *
    * Curated-KB citations require genuine keyword evidence (score at/above
    * MIN_CURATED_CITATION_SCORE), not just base eligibility for the surface,
    * so an always-on "core" article never gets cited as if it specifically
    * answered this query. Uploaded-document citations reuse
    * retrieveDocumentChunks(), which already re-verifies org, publication
-   * status, and version before any chunk is trusted.
+   * status, and version before any chunk is trusted, and applies the same
+   * collectionIds scoping (if any) as the prompt that produced the answer.
    */
   async getAssistantCitations(opts: {
     query?: string | null;
     orgId?: string | null;
     roleId?: string | null;
+    surface?: KbSurface;
+    collectionIds?: string[] | null;
   }): Promise<AiCitation[]> {
+    const surface = opts.surface ?? 'assistant';
     const citations: AiCitation[] = [];
 
-    const [topCurated] = this.retrieveScored('assistant', opts.query, 1);
+    const [topCurated] = this.retrieveScored(surface, opts.query, 1);
     if (topCurated && topCurated.score >= MIN_CURATED_CITATION_SCORE) {
       citations.push({
         kind: 'curated_kb',
@@ -494,7 +560,13 @@ export class KnowledgeBaseService {
       });
     }
 
-    const docs = await this.retrieveDocumentChunks(opts.orgId, 'assistant', opts.query, opts.roleId);
+    const docs = await this.retrieveDocumentChunks(
+      opts.orgId,
+      surface,
+      opts.query,
+      opts.roleId,
+      opts.collectionIds,
+    );
     for (const d of docs) {
       citations.push({
         kind: 'uploaded_document',
@@ -600,10 +672,11 @@ export class KnowledgeBaseService {
     guardrails?: OrgAiGuardrails;
     orgId?: string | null;
     roleId?: string | null;
+    collectionIds?: string[] | null;
   }): Promise<string> {
     const kb = this.formatContext(this.retrieve('describe', opts.query));
     const docs = this.formatDocumentContext(
-      await this.retrieveDocumentChunks(opts.orgId, 'describe', opts.query, opts.roleId),
+      await this.retrieveDocumentChunks(opts.orgId, 'describe', opts.query, opts.roleId, opts.collectionIds),
     );
     const guard = opts.guardrails ? this.formatGuardrails(opts.guardrails) : '';
     return [
@@ -689,10 +762,11 @@ export class KnowledgeBaseService {
     guardrails?: OrgAiGuardrails;
     orgId?: string | null;
     roleId?: string | null;
+    collectionIds?: string[] | null;
   }): Promise<string> {
     const kb = this.formatContext(this.retrieve('topics', opts.query, 5));
     const docs = this.formatDocumentContext(
-      await this.retrieveDocumentChunks(opts.orgId, 'topics', opts.query, opts.roleId),
+      await this.retrieveDocumentChunks(opts.orgId, 'topics', opts.query, opts.roleId, opts.collectionIds),
     );
     const guard = opts.guardrails ? this.formatGuardrails(opts.guardrails) : '';
     return [

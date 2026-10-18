@@ -7,6 +7,10 @@ import {
   KnowledgeChunkSchema,
 } from '../schemas/knowledge-chunk.schema';
 import {
+  KnowledgeCollectionEntity,
+  KnowledgeCollectionSchema,
+} from '../schemas/knowledge-collection.schema';
+import {
   KnowledgeSource,
   KnowledgeSourceSchema,
 } from '../schemas/knowledge-source.schema';
@@ -21,6 +25,7 @@ import { KnowledgeBaseService } from './knowledge/knowledge-base.service';
     MongooseModule.forFeature([
       { name: KnowledgeSource.name, schema: KnowledgeSourceSchema },
       { name: KnowledgeChunk.name, schema: KnowledgeChunkSchema },
+      { name: KnowledgeCollectionEntity.name, schema: KnowledgeCollectionSchema },
     ]),
   ],
   controllers: [AiController],

@@ -4,6 +4,7 @@ import {
   IsArray,
   IsEnum,
   IsIn,
+  IsMongoId,
   IsOptional,
   IsString,
   MaxLength,
@@ -37,6 +38,13 @@ class GenerateTopicsDto {
   @IsOptional()
   @IsString()
   title?: string | null;
+
+  /** See FeedbackSession.knowledgeCollectionIds doc. Empty/absent = default (unscoped) retrieval. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @IsMongoId({ each: true })
+  knowledgeCollectionIds?: string[];
 }
 
 class SessionChatMessageDto {
@@ -62,6 +70,13 @@ class SessionChatTurnDto {
   @IsString()
   @MaxLength(200)
   title?: string | null;
+
+  /** See FeedbackSession.knowledgeCollectionIds doc. Empty/absent = default (unscoped) retrieval. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @IsMongoId({ each: true })
+  knowledgeCollectionIds?: string[];
 }
 
 class AssistantChatTurnDto {

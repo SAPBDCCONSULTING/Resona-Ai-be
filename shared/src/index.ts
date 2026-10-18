@@ -241,6 +241,15 @@ export interface FeedbackSession {
   anonymous: boolean;
   invitation: SessionInvitation;
   engagementMetrics: string[];
+  /**
+   * Knowledge Base collections (KnowledgeCollectionRecord ids) the Describe
+   * Session AI coach/topic-generation should scope its retrieval to. Empty
+   * = no scoping, the pre-existing default (every published, eligible
+   * source for the 'describe'/'topics' surfaces). Never applies to the
+   * live employee_discussion facilitator, which has no document retrieval
+   * at all by design.
+   */
+  knowledgeCollectionIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -271,6 +280,8 @@ export interface UpdateSessionDraftInput {
   anonymous?: boolean;
   invitation?: Partial<SessionInvitation>;
   engagementMetrics?: string[];
+  /** See FeedbackSession.knowledgeCollectionIds doc. */
+  knowledgeCollectionIds?: string[];
 }
 
 export interface SessionListQuery {
@@ -555,11 +566,19 @@ export interface GenerateTopicsInput {
   type: SessionType;
   tone?: string | null;
   title?: string | null;
+  /** See FeedbackSession.knowledgeCollectionIds doc. Empty/absent = default (unscoped) retrieval. */
+  knowledgeCollectionIds?: string[];
 }
 
 export interface GenerateTopicsResult {
   topics: SessionTopic[];
   source: 'heuristic' | 'openai';
+  /**
+   * Evidence actually used to ground these topics, when any was retrieved
+   * (OpenAI path only — the heuristic fallback never queries the knowledge
+   * base). Optional and additive, same contract as AiCitation elsewhere.
+   */
+  citations?: AiCitation[];
 }
 
 export interface SessionChatMessage {
@@ -578,6 +597,8 @@ export interface SessionChatTurnInput {
   type: SessionType;
   messages: SessionChatMessage[];
   title?: string | null;
+  /** See FeedbackSession.knowledgeCollectionIds doc. Empty/absent = default (unscoped) retrieval. */
+  knowledgeCollectionIds?: string[];
 }
 
 export interface SessionChatTurnResult {
@@ -586,6 +607,12 @@ export interface SessionChatTurnResult {
   readyToGenerate: boolean;
   /** Quick-reply chips for the HR Describe coach UI. */
   suggestions?: string[];
+  /**
+   * Evidence actually used to ground this coaching turn, when any was
+   * retrieved (OpenAI path only). Optional and additive, same contract as
+   * AiCitation elsewhere.
+   */
+  citations?: AiCitation[];
 }
 
 export interface AssistantChatTurnInput {

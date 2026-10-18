@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import { OrgService } from '../../org/org.service';
 import { KnowledgeChunkDocument } from '../../schemas/knowledge-chunk.schema';
+import { KnowledgeCollectionDocument } from '../../schemas/knowledge-collection.schema';
 import { KnowledgeSourceDocument } from '../../schemas/knowledge-source.schema';
 import type { EmbeddingProvider } from '../embedding/embedding-provider';
 import { KnowledgeBaseService } from './knowledge-base.service';
@@ -24,12 +25,14 @@ function makeService(): KnowledgeBaseService {
   const org = { get: jest.fn() } as unknown as OrgService;
   const knowledgeSources = {} as unknown as Model<KnowledgeSourceDocument>;
   const knowledgeChunks = {} as unknown as Model<KnowledgeChunkDocument>;
+  const knowledgeCollections = {} as unknown as Model<KnowledgeCollectionDocument>;
   return new KnowledgeBaseService(
     org,
     knowledgeSources,
     knowledgeChunks,
     makeDisabledEmbeddings(),
     makeNoopConfig(),
+    knowledgeCollections,
   );
 }
 
@@ -80,6 +83,8 @@ function makeServiceWithModels(opts: {
   semanticChunks?: FakeChunk[];
   embeddings?: Partial<EmbeddingProvider>;
   config?: Record<string, string>;
+  /** KnowledgeCollectionEntity documents resolveCollectionKeys() should find for the ids a test passes as collectionIds. */
+  collectionRecords?: { _id: Types.ObjectId; key: string }[];
 }) {
   const org = { get: jest.fn() } as unknown as OrgService;
   const sourcesFind = jest.fn().mockReturnValue(selectLeanChain(opts.eligibleSources ?? []));
@@ -91,16 +96,19 @@ function makeServiceWithModels(opts: {
     ...sortLimitLeanChain(opts.chunks ?? []),
     ...selectLimitLeanChain(opts.semanticChunks ?? opts.chunks ?? []),
   });
+  const collectionsFind = jest.fn().mockReturnValue(selectLeanChain(opts.collectionRecords ?? []));
   const knowledgeSources = { find: sourcesFind } as unknown as Model<KnowledgeSourceDocument>;
   const knowledgeChunks = { find: chunksFind } as unknown as Model<KnowledgeChunkDocument>;
+  const knowledgeCollections = { find: collectionsFind } as unknown as Model<KnowledgeCollectionDocument>;
   const kb = new KnowledgeBaseService(
     org,
     knowledgeSources,
     knowledgeChunks,
     makeDisabledEmbeddings(opts.embeddings),
     makeNoopConfig(opts.config),
+    knowledgeCollections,
   );
-  return { kb, sourcesFind, chunksFind };
+  return { kb, sourcesFind, chunksFind, collectionsFind };
 }
 
 describe('KnowledgeBaseService', () => {
@@ -671,6 +679,216 @@ describe('KnowledgeBaseService', () => {
       });
       const conflict = await kb.getDocumentConflict({ query: 'policy', orgId, surface: 'assistant' });
       expect(conflict).toBeNull();
+    });
+  });
+
+  describe('collection-scoped retrieval (knowledgeCollectionIds)', () => {
+    const orgId = new Types.ObjectId().toString();
+    const sourceIdA = new Types.ObjectId();
+    const sourceIdB = new Types.ObjectId();
+    const collectionIdA = new Types.ObjectId();
+    const collectionIdB = new Types.ObjectId();
+
+    it('never queries the collections model when no collectionIds are given — preserves the pre-existing default (unscoped) behavior exactly', async () => {
+      const { kb, collectionsFind } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'Doc', version: 1, category: 'hr_people' }],
+        chunks: [makeFakeChunk({ sourceId: sourceIdA, text: 'Unscoped evidence.' })],
+      });
+      const citations = await kb.getAssistantCitations({ query: 'anything', orgId, surface: 'topics' });
+      expect(collectionsFind).not.toHaveBeenCalled();
+      expect(citations.filter((c) => c.kind === 'uploaded_document')).toHaveLength(1);
+    });
+
+    it('adds a category:{$in:[...]} filter to the eligible-sources query for the resolved collection key(s)', async () => {
+      // The mock source model always returns the full eligibleSources list
+      // regardless of the query (it doesn't simulate real Mongo filtering —
+      // same limitation as every other eligibility test in this file), so
+      // this asserts on the QUERY ITSELF rather than on filtered results;
+      // the "resolves to a real narrowing of results" guarantee is proven
+      // separately below by constructing eligibleSources to represent what
+      // Mongo would have actually matched post-filter.
+      const { kb, sourcesFind } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'HR doc', version: 1, category: 'hr_people' }],
+        chunks: [makeFakeChunk({ sourceId: sourceIdA, text: 'HR evidence.' })],
+        collectionRecords: [{ _id: collectionIdA, key: 'hr_people' }],
+      });
+
+      await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [collectionIdA.toString()],
+      });
+
+      const query = sourcesFind.mock.calls[0][0] as { category?: { $in: string[] } };
+      expect(query.category).toEqual({ $in: ['hr_people'] });
+    });
+
+    it('end-to-end: a selected collection narrows the uploaded-document citations to only that collection\'s source', async () => {
+      // eligibleSources here represents what the real query would have
+      // matched once the category filter is applied — i.e. the source
+      // whose category is NOT in the selection is already excluded, the
+      // same "simulate what Mongo would have actually matched" pattern
+      // used by every other eligibility test in this file (mocks don't
+      // execute real Mongo query filters).
+      const { kb } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'HR doc', version: 1, category: 'hr_people' }],
+        chunks: [
+          makeFakeChunk({ sourceId: sourceIdA, text: 'HR evidence.' }),
+          makeFakeChunk({ sourceId: sourceIdB, text: 'Security evidence — not actually eligible.' }),
+        ],
+        collectionRecords: [{ _id: collectionIdA, key: 'hr_people' }],
+      });
+
+      const citations = await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [collectionIdA.toString()],
+      });
+
+      const docCitations = citations.filter((c) => c.kind === 'uploaded_document');
+      expect(docCitations).toHaveLength(1);
+      expect(docCitations[0].sourceTitle).toBe('HR doc');
+    });
+
+    it('scopes the collections lookup to this exact org — never trusts a client-supplied id across orgs', async () => {
+      const { kb, collectionsFind } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'Doc', version: 1, category: 'hr_people' }],
+        chunks: [makeFakeChunk({ sourceId: sourceIdA, text: 'Evidence.' })],
+        collectionRecords: [{ _id: collectionIdA, key: 'hr_people' }],
+      });
+
+      await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [collectionIdA.toString()],
+      });
+
+      const query = collectionsFind.mock.calls[0][0] as { orgId: Types.ObjectId };
+      expect(query.orgId.toString()).toBe(orgId);
+    });
+
+    it('combines multiple selected collections with OR semantics (any matching category is eligible)', async () => {
+      const { kb, sourcesFind } = makeServiceWithModels({
+        eligibleSources: [
+          { _id: sourceIdA, title: 'HR doc', version: 1, category: 'hr_people' },
+          { _id: sourceIdB, title: 'Security doc', version: 1, category: 'it_security' },
+        ],
+        chunks: [
+          makeFakeChunk({ sourceId: sourceIdA, text: 'HR evidence.' }),
+          makeFakeChunk({ sourceId: sourceIdB, text: 'Security evidence.' }),
+        ],
+        collectionRecords: [
+          { _id: collectionIdA, key: 'hr_people' },
+          { _id: collectionIdB, key: 'it_security' },
+        ],
+      });
+
+      await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [collectionIdA.toString(), collectionIdB.toString()],
+      });
+
+      const query = sourcesFind.mock.calls[0][0] as { category?: { $in: string[] } };
+      expect(query.category?.$in.sort()).toEqual(['hr_people', 'it_security']);
+    });
+
+    it('fails closed (matches nothing) when a selection is given but resolves to no real collection — never silently falls back to unscoped', async () => {
+      const { kb } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'HR doc', version: 1, category: 'hr_people' }],
+        chunks: [makeFakeChunk({ sourceId: sourceIdA, text: 'HR evidence.' })],
+        collectionRecords: [], // the requested id doesn't resolve to anything in this org
+      });
+
+      const citations = await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [new Types.ObjectId().toString()],
+      });
+
+      expect(citations.filter((c) => c.kind === 'uploaded_document')).toEqual([]);
+    });
+
+    it('end-to-end: an uncategorized source is excluded once a collection is selected (a real $in:[key] filter never matches category:null)', async () => {
+      // Simulates what the real query would match: category:null fails
+      // $in:['hr_people'] in actual MongoDB, so the uncategorized doc is
+      // never part of the eligible set once a collection is selected —
+      // represented here the same way every other eligibility test in
+      // this file represents a real filter's effect.
+      const { kb } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'HR doc', version: 1, category: 'hr_people' }],
+        chunks: [
+          makeFakeChunk({ sourceId: sourceIdA, text: 'HR evidence.' }),
+          makeFakeChunk({ sourceId: sourceIdB, text: 'Uncategorized evidence — not actually eligible.' }),
+        ],
+        collectionRecords: [{ _id: collectionIdA, key: 'hr_people' }],
+      });
+
+      const citations = await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [collectionIdA.toString()],
+      });
+
+      const docCitations = citations.filter((c) => c.kind === 'uploaded_document');
+      expect(docCitations).toHaveLength(1);
+      expect(docCitations[0].sourceTitle).toBe('HR doc');
+    });
+
+    it('still enforces org/publication/access-role eligibility even when a collection matches — scoping narrows, never widens, eligibility', async () => {
+      // eligibleSources here represents what the real query would have
+      // matched (published, this org, this surface) — an empty list
+      // simulates a source that matches the selected collection's category
+      // but is NOT published/eligible, exactly like every other
+      // not-eligible test in this file.
+      const { kb } = makeServiceWithModels({
+        eligibleSources: [],
+        chunks: [makeFakeChunk({ sourceId: sourceIdA, text: 'Not actually eligible.' })],
+        collectionRecords: [{ _id: collectionIdA, key: 'hr_people' }],
+      });
+
+      const citations = await kb.getAssistantCitations({
+        query: 'evidence',
+        orgId,
+        surface: 'topics',
+        collectionIds: [collectionIdA.toString()],
+      });
+
+      expect(citations.filter((c) => c.kind === 'uploaded_document')).toEqual([]);
+    });
+
+    it('buildTopicsSystemPrompt and buildDescribeSystemPrompt both pass collectionIds through to retrieval and include only the scoped evidence', async () => {
+      // eligibleSources represents what the real query matches once the
+      // category filter (asserted separately above) is applied.
+      const { kb, sourcesFind } = makeServiceWithModels({
+        eligibleSources: [{ _id: sourceIdA, title: 'HR doc', version: 1, category: 'hr_people' }],
+        chunks: [makeFakeChunk({ sourceId: sourceIdA, text: 'HR-only evidence text.' })],
+        collectionRecords: [{ _id: collectionIdA, key: 'hr_people' }],
+      });
+
+      const topicsPrompt = await kb.buildTopicsSystemPrompt({
+        query: 'evidence',
+        orgId,
+        collectionIds: [collectionIdA.toString()],
+      });
+      const describePrompt = await kb.buildDescribeSystemPrompt({
+        query: 'evidence',
+        orgId,
+        collectionIds: [collectionIdA.toString()],
+      });
+
+      for (const prompt of [topicsPrompt, describePrompt]) {
+        expect(prompt).toContain('HR-only evidence text.');
+      }
+      for (const call of sourcesFind.mock.calls) {
+        expect((call[0] as { category?: { $in: string[] } }).category).toEqual({ $in: ['hr_people'] });
+      }
     });
   });
 
