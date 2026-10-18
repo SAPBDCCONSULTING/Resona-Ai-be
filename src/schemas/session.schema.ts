@@ -21,7 +21,7 @@ class Progress {
   @Prop({ default: 0 })
   percent!: number;
 
-  @Prop({ default: 'no_schedule' })
+  @Prop({ type: String, default: 'no_schedule' })
   health!: HealthStatus;
 }
 
@@ -46,10 +46,11 @@ export class Session {
   title!: string;
 
   /** one_on_one | survey only — never focus_group */
-  @Prop({ required: true, enum: ['one_on_one', 'survey'], index: true })
+  @Prop({ type: String, required: true, enum: ['one_on_one', 'survey'], index: true })
   type!: SessionType;
 
   @Prop({
+    type: String,
     required: true,
     enum: ['draft', 'scheduled', 'ongoing', 'completed', 'archived'],
     default: 'draft',
@@ -175,10 +176,11 @@ export class Campaign {
   @Prop({ required: true })
   title!: string;
 
-  @Prop({ required: true, enum: ['recurring', 'linked', 'independent'] })
+  @Prop({ type: String, required: true, enum: ['recurring', 'linked', 'independent'] })
   type!: CampaignType;
 
   @Prop({
+    type: String,
     required: true,
     enum: ['draft', 'scheduled', 'ongoing', 'completed', 'archived'],
     default: 'draft',
@@ -237,7 +239,7 @@ export class Campaign {
   @Prop({ default: 0 })
   percent!: number;
 
-  @Prop({ default: 'no_schedule' })
+  @Prop({ type: String, default: 'no_schedule' })
   health!: HealthStatus;
 }
 

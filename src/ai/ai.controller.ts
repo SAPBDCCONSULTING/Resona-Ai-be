@@ -20,7 +20,7 @@ import {
 import { AiService } from './ai.service';
 import { KnowledgeBaseService } from './knowledge/knowledge-base.service';
 
-type AuthedRequest = Request & { user: { userId: string; orgId: string } };
+type AuthedRequest = Request & { user: { userId: string; orgId: string; roleId: string } };
 
 class GenerateTopicsDto {
   @IsString()
@@ -104,18 +104,18 @@ export class AiController {
   @Post('session-topics')
   @RequirePermissions('ai:use')
   generateTopics(@Req() req: AuthedRequest, @Body() dto: GenerateTopicsDto) {
-    return this.ai.generateTopics(dto, req.user.orgId);
+    return this.ai.generateTopics(dto, req.user.orgId, req.user.roleId);
   }
 
   @Post('session-chat')
   @RequirePermissions('ai:use')
   sessionChat(@Req() req: AuthedRequest, @Body() dto: SessionChatTurnDto) {
-    return this.ai.chatDescribeTurn(dto, req.user.orgId);
+    return this.ai.chatDescribeTurn(dto, req.user.orgId, req.user.roleId);
   }
 
   @Post('assistant-chat')
   @RequirePermissions('ai:use')
   assistantChat(@Req() req: AuthedRequest, @Body() dto: AssistantChatTurnDto) {
-    return this.ai.assistantChatTurn(dto, req.user.orgId);
+    return this.ai.assistantChatTurn(dto, req.user.orgId, req.user.roleId);
   }
 }
