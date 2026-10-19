@@ -2,7 +2,6 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
-import type { PermissionKey } from '@pulsefeedback/shared';
 import {
   Organization,
   OrganizationDocument,
@@ -29,44 +28,9 @@ import {
   SessionTemplate,
   SessionTemplateDocument,
 } from '../schemas/session-template.schema';
+import { ADMIN_PERMS, ANALYST_PERMS, EMPLOYEE_PERMS } from './role-permission-sets';
 
-const ADMIN_PERMS: PermissionKey[] = [
-  'org:read',
-  'org:write',
-  'users:read',
-  'users:write',
-  'roles:read',
-  'roles:write',
-  'contacts:read',
-  'contacts:write',
-  'contacts:import',
-  'sessions:read',
-  'sessions:write',
-  'sessions:launch',
-  'sessions:archive',
-  'campaigns:read',
-  'campaigns:write',
-  'templates:read',
-  'templates:write',
-  'reports:read',
-  'reports:export',
-  'ai:use',
-  'settings:read',
-  'settings:write',
-];
-
-/** Read-only dashboard role — used to prove 403 on sessions:write. */
-const ANALYST_PERMS: PermissionKey[] = [
-  'org:read',
-  'contacts:read',
-  'sessions:read',
-  'campaigns:read',
-  'templates:read',
-  'reports:read',
-  'settings:read',
-];
-
-const EMPLOYEE_PERMS: PermissionKey[] = ['sessions:read', 'responses:write'];
+export { ADMIN_PERMS, ANALYST_PERMS, EMPLOYEE_PERMS };
 
 const RESONAAI_PROFILE = {
   address: '1710 Greenwood Road, Pleasanton CA 94566',

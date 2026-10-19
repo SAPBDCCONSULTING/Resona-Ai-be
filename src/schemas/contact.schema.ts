@@ -49,7 +49,7 @@ export class Contact {
   @Prop({ type: [Types.ObjectId], ref: 'ContactGroup', default: [] })
   groupIds!: Types.ObjectId[];
 
-  @Prop({ enum: ['employee', 'external'], default: 'employee' })
+  @Prop({ type: String, enum: ['employee', 'external'], default: 'employee' })
   contactType!: 'employee' | 'external';
 
   /** Linked login account, when one exists. Null until an account is created (future task). */

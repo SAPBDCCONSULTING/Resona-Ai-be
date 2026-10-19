@@ -3,11 +3,10 @@
  * Keep entries short and factual. Tag surfaces that should see each article.
  */
 
-export type KbSurface =
-  | 'describe' // HR Describe Session coach (S2)
-  | 'assistant' // Global dashboard AI assistant
-  | 'employee_discussion' // Employee 1:1 facilitator
-  | 'topics'; // Topic generation
+import type { KbSurface } from '@pulsefeedback/shared';
+
+/** Re-exported so existing `import { type KbSurface } from './resona.knowledge'` call sites keep working unchanged. */
+export type { KbSurface };
 
 export type KbArticle = {
   id: string;
