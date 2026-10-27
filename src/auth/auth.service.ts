@@ -8,6 +8,17 @@ import type { PermissionKey } from '@pulsefeedback/shared';
 import { User, UserDocument } from '../schemas/user.schema';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { LoginDto } from './dto/login.dto';
+import { effectivePermissions } from './effective-permissions';
+
+function roleKindOf(
+  role: { kind?: string } | null,
+): 'owner' | 'custom' | 'system' {
+  return role?.kind === 'owner'
+    ? 'owner'
+    : role?.kind === 'custom'
+      ? 'custom'
+      : 'system';
+}
 
 type TokenPayload = {
   sub: string;
@@ -37,7 +48,7 @@ export class AuthService {
     }
 
     const role = await this.roles.findById(user.roleId);
-    const permissions = role?.permissions ?? [];
+    const permissions = effectivePermissions(role);
     const payload: TokenPayload = {
       sub: user.id,
       orgId: user.orgId.toString(),
@@ -54,6 +65,8 @@ export class AuthService {
         email: user.email,
         name: user.name,
         roleId: user.roleId.toString(),
+        roleName: role?.name ?? null,
+        roleKind: roleKindOf(role),
         locale: user.locale,
         permissions,
       },
@@ -76,7 +89,7 @@ export class AuthService {
     }
 
     const role = await this.roles.findById(user.roleId);
-    const permissions = role?.permissions ?? [];
+    const permissions = effectivePermissions(role);
     const next: TokenPayload = {
       sub: user.id,
       orgId: user.orgId.toString(),
@@ -102,8 +115,10 @@ export class AuthService {
       email: user.email,
       name: user.name,
       roleId: user.roleId.toString(),
+      roleName: role?.name ?? null,
+      roleKind: roleKindOf(role),
       locale: user.locale,
-      permissions: role?.permissions ?? [],
+      permissions: effectivePermissions(role),
     };
   }
 

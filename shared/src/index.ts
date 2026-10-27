@@ -164,6 +164,12 @@ export interface User {
 /** Settings User Management row — includes role label. */
 export interface OrgUser extends User {
   roleName: string;
+  /** 'custom' for roles created in Roles & Permissions; absent on older API responses. */
+  roleKind?: 'system' | 'custom';
+  /** False when the caller may not change this user's role (self, or a role beyond their authority). */
+  canChangeRole?: boolean;
+  /** Why `canChangeRole` is false, for display. */
+  roleChangeBlockedReason?: string | null;
 }
 
 export interface AssignUserRoleInput {
@@ -175,6 +181,8 @@ export interface Role {
   orgId: string;
   name: string;
   permissions: PermissionKey[];
+  /** 'custom' for roles created in Roles & Permissions; absent on older API responses. */
+  kind?: 'system' | 'custom';
 }
 
 /** Denormalized counters for board cards — do not join responses on list. */
@@ -612,3 +620,5 @@ export function sessionJoinPath(session: Pick<FeedbackSession, 'id' | 'type'>): 
   if (session.type === 'survey') return `/survey/join/${session.id}`;
   return `/one-on-one/join/${session.id}`;
 }
+
+export * from './permission-registry';

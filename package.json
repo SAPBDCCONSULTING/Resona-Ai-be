@@ -13,7 +13,9 @@
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "rbac:bootstrap-owner": "ts-node --transpile-only src/cli/bootstrap-owner.ts",
+    "seed:dev-users": "ts-node --transpile-only src/cli/seed-dev-users.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
