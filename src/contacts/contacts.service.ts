@@ -6,9 +6,18 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import type {
-  Contact as ContactDto,
-  ContactGroup as GroupDto,
+import { isTimeZone } from 'class-validator';
+import {
+  CONTACT_GENDERS,
+  CONTACT_GENDER_LABELS,
+  CONTACT_LANGUAGES,
+  CONTACT_LANGUAGE_LABELS,
+  IANA_TIMEZONE_PATTERN,
+  isValidDateOfBirth,
+  type Contact as ContactDto,
+  type ContactGender,
+  type ContactLanguage,
+  type ContactGroup as GroupDto,
 } from '@pulsefeedback/shared';
 import {
   Contact,
@@ -18,6 +27,28 @@ import {
 } from '../schemas/contact.schema';
 import { CreateContactDto, UpdateContactDto } from './dto/contact.dto';
 import { CreateGroupDto, UpdateGroupDto } from './dto/group.dto';
+
+/** Column order of the CSV export; also the order import assumes when a file has no header row. */
+const CSV_COLUMNS = [
+  'name',
+  'email',
+  'department',
+  'designation',
+  'timezone',
+  'city',
+  'country',
+  'gender',
+  'dateOfBirth',
+  'preferredLanguage',
+] as const;
+type CsvColumn = (typeof CSV_COLUMNS)[number];
+
+/** Other header spellings accepted on import, written as normalised by csvColumns. */
+const CSV_HEADER_ALIASES: Record<string, string> = {
+  dob: 'dateofbirth',
+  birthdate: 'dateofbirth',
+  language: 'preferredlanguage',
+};
 
 @Injectable()
 export class ContactsService {
@@ -72,18 +103,37 @@ export class ContactsService {
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
-    if (!lines.length) return { imported: 0, items: [] as ContactDto[] };
+    if (!lines.length) return { imported: 0, incomplete: 0, items: [] as ContactDto[] };
 
     const header = lines[0].toLowerCase();
     const hasHeader = header.includes('email') || header.includes('name');
     const rows = hasHeader ? lines.slice(1) : lines;
+    const columns = this.csvColumns(hasHeader ? this.parseCsvLine(lines[0]) : null);
     const created: ContactDto[] = [];
 
     for (const row of rows) {
-      const parts = row.split(',').map((p) => p.trim().replace(/^"|"$/g, ''));
+      const parts = this.parseCsvLine(row);
       if (parts.length < 2) continue;
-      const [name, email, department] = parts;
+      const cell = (column: CsvColumn): string => parts[columns[column]] ?? '';
+      const name = cell('name');
+      const email = cell('email');
+      const department = cell('department');
       if (!email || !email.includes('@')) continue;
+
+      // Profile fields are only written when the row holds a usable value, so a
+      // name,email,department file never wipes details already saved on a contact.
+      // Anything missing or invalid stays null and shows as empty in the dashboard.
+      const profile: Record<string, string> = {};
+      if (cell('designation')) profile.designation = cell('designation');
+      if (this.isIanaTimezone(cell('timezone'))) profile.timezone = cell('timezone');
+      if (cell('city')) profile.city = cell('city');
+      if (cell('country')) profile.country = cell('country');
+      const gender = this.parseGender(cell('gender'));
+      if (gender) profile.gender = gender;
+      if (isValidDateOfBirth(cell('dateOfBirth'))) profile.dateOfBirth = cell('dateOfBirth');
+      const language = this.parseLanguage(cell('preferredLanguage'));
+      if (language) profile.preferredLanguage = language;
+
       const doc = await this.contacts.findOneAndUpdate(
         { orgId: new Types.ObjectId(orgId), email: email.toLowerCase() },
         {
@@ -91,6 +141,7 @@ export class ContactsService {
             name: name || email.split('@')[0],
             department: department || null,
             contactType: 'employee',
+            ...profile,
           },
           $setOnInsert: {
             orgId: new Types.ObjectId(orgId),
@@ -104,7 +155,10 @@ export class ContactsService {
       );
     }
 
-    return { imported: created.length, items: created };
+    const incomplete = created.filter(
+      (c) => !c.designation || !c.timezone || !c.city || !c.country || !c.gender,
+    ).length;
+    return { imported: created.length, incomplete, items: created };
   }
 
   async exportCsv(orgId: string): Promise<string> {
@@ -116,13 +170,22 @@ export class ContactsService {
       if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
       return v;
     };
-    const lines = ['name,email,department'];
+    const lines = [CSV_COLUMNS.join(',')];
     for (const d of docs) {
+      const gender = this.parseGender(String(d.gender ?? ''));
+      const language = this.parseLanguage(String(d.preferredLanguage ?? ''));
       lines.push(
         [
           escape(String(d.name ?? '')),
           escape(String(d.email ?? '')),
           escape(String(d.department ?? '')),
+          escape(String(d.designation ?? '')),
+          escape(String(d.timezone ?? '')),
+          escape(String(d.city ?? '')),
+          escape(String(d.country ?? '')),
+          escape(gender ? CONTACT_GENDER_LABELS[gender] : ''),
+          escape(this.dateOfBirthOrNull(d.dateOfBirth) ?? ''),
+          escape(language ? CONTACT_LANGUAGE_LABELS[language] : ''),
         ].join(','),
       );
     }
@@ -142,6 +205,13 @@ export class ContactsService {
         name: dto.name.trim(),
         email,
         department: dto.department?.trim() || null,
+        designation: dto.designation.trim(),
+        timezone: dto.timezone.trim(),
+        city: dto.city.trim(),
+        country: dto.country.trim(),
+        gender: dto.gender,
+        dateOfBirth: dto.dateOfBirth ?? null,
+        preferredLanguage: dto.preferredLanguage ?? null,
         groupIds: [],
         contactType: dto.contactType ?? 'employee',
       });
@@ -176,6 +246,13 @@ export class ContactsService {
     if (dto.name !== undefined) update.name = dto.name.trim();
     if (dto.email !== undefined) update.email = this.normalizeEmail(dto.email);
     if (dto.department !== undefined) update.department = dto.department?.trim() || null;
+    if (dto.designation !== undefined) update.designation = dto.designation.trim();
+    if (dto.timezone !== undefined) update.timezone = dto.timezone.trim();
+    if (dto.city !== undefined) update.city = dto.city.trim();
+    if (dto.country !== undefined) update.country = dto.country.trim();
+    if (dto.gender !== undefined) update.gender = dto.gender;
+    if (dto.dateOfBirth !== undefined) update.dateOfBirth = dto.dateOfBirth;
+    if (dto.preferredLanguage !== undefined) update.preferredLanguage = dto.preferredLanguage;
     if (dto.contactType !== undefined) update.contactType = dto.contactType;
 
     if (Object.keys(update).length === 0) return this.getContact(orgId, id);
@@ -367,6 +444,84 @@ export class ContactsService {
     return email.trim().toLowerCase();
   }
 
+  /**
+   * Maps each CSV column to its index in a row. Named header cells win; without one,
+   * name/email/department keep their original fixed positions and the profile
+   * columns are only read from a header-less file laid out like the export.
+   * Header matching ignores case, spaces and underscores ("Date of Birth" = dateOfBirth).
+   */
+  private csvColumns(header: string[] | null): Record<CsvColumn, number> {
+    const named = (header ?? []).map((h) => {
+      const key = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return CSV_HEADER_ALIASES[key] ?? key;
+    });
+    const columns = {} as Record<CsvColumn, number>;
+    CSV_COLUMNS.forEach((column, position) => {
+      const found = named.indexOf(column.toLowerCase());
+      if (found >= 0) columns[column] = found;
+      else columns[column] = header && position > 2 ? -1 : position;
+    });
+    return columns;
+  }
+
+  /** Splits one CSV row, honouring "quoted, cells" and "" escapes as written by exportCsv. */
+  private parseCsvLine(line: string): string[] {
+    const cells: string[] = [];
+    let cell = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"' && line[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else if (ch === '"') quoted = false;
+        else cell += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') {
+        cells.push(cell.trim());
+        cell = '';
+      } else cell += ch;
+    }
+    cells.push(cell.trim());
+    return cells;
+  }
+
+  private isIanaTimezone(value: string): boolean {
+    return IANA_TIMEZONE_PATTERN.test(value) && isTimeZone(value);
+  }
+
+  /** Accepts a stored value ("non_binary") or its label ("Non-binary"), any case. */
+  private parseGender(value: string): ContactGender | null {
+    const wanted = value.trim().toLowerCase();
+    if (!wanted) return null;
+    return (
+      CONTACT_GENDERS.find(
+        (g) => g === wanted || CONTACT_GENDER_LABELS[g].toLowerCase() === wanted,
+      ) ?? null
+    );
+  }
+
+  /** Accepts a stored code ("hi") or its label ("Hindi"), any case. */
+  private parseLanguage(value: string): ContactLanguage | null {
+    const wanted = value.trim().toLowerCase();
+    if (!wanted) return null;
+    return (
+      CONTACT_LANGUAGES.find(
+        (l) => l === wanted || CONTACT_LANGUAGE_LABELS[l].toLowerCase() === wanted,
+      ) ?? null
+    );
+  }
+
+  private dateOfBirthOrNull(value: unknown): string | null {
+    return typeof value === 'string' && isValidDateOfBirth(value) ? value : null;
+  }
+
+  /** Blank or missing text becomes null so the dashboard can show it as empty. */
+  private textOrNull(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
   private assertValidId(id: string, label: string): void {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException(`Invalid ${label} id`);
@@ -402,6 +557,15 @@ export class ContactsService {
       name: String(d.name),
       email: String(d.email),
       department: (d.department as string | null) ?? null,
+      designation: this.textOrNull(d.designation),
+      timezone: this.textOrNull(d.timezone),
+      city: this.textOrNull(d.city),
+      country: this.textOrNull(d.country),
+      gender: this.parseGender(typeof d.gender === 'string' ? d.gender : ''),
+      dateOfBirth: this.dateOfBirthOrNull(d.dateOfBirth),
+      preferredLanguage: this.parseLanguage(
+        typeof d.preferredLanguage === 'string' ? d.preferredLanguage : '',
+      ),
       groupIds: Array.isArray(d.groupIds) ? d.groupIds.map(String) : [],
       contactType: (d.contactType as ContactDto['contactType']) ?? 'employee',
       userId: d.userId ? String(d.userId) : null,

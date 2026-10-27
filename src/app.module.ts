@@ -16,6 +16,7 @@ import { RolesModule } from './roles/roles.module';
 import { OrgModule } from './org/org.module';
 import { UsersModule } from './users/users.module';
 import { ConversationsModule } from './conversations/conversations.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ConversationsModule } from './conversations/conversations.module';
     TemplatesModule,
     ResponsesModule,
     ConversationsModule,
+    KnowledgeModule,
     RolesModule,
     OrgModule,
     UsersModule,

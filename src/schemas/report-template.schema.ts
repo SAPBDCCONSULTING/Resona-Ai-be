@@ -21,7 +21,7 @@ export class ReportTemplate {
   @Prop({ default: '' })
   description!: string;
 
-  @Prop({ enum: ['summary', 'themes', 'scores', 'custom'], default: 'summary' })
+  @Prop({ type: String, enum: ['summary', 'themes', 'scores', 'custom'], default: 'summary' })
   kind!: 'summary' | 'themes' | 'scores' | 'custom';
 
   @Prop({ type: [String], default: ['one_on_one', 'survey'] })
