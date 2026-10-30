@@ -49,6 +49,11 @@ function deriveScheduleStatus<S extends string>(
   return 'scheduled';
 }
 
+function trimOrNull(v: string | null | undefined): string | null {
+  const t = v?.trim();
+  return t ? t : null;
+}
+
 export type Actor = {
   userId: string;
   orgId: string;
@@ -85,7 +90,7 @@ export class CampaignsService {
     const doc = await this.campaigns
       .findOne({ _id: id, orgId: new Types.ObjectId(orgId) })
       .lean();
-    if (!doc) throw new NotFoundException('Campaign not found');
+    if (!doc) throw new NotFoundException('Program not found');
     const sessions = await this.sessions
       .find({ orgId: new Types.ObjectId(orgId), campaignId: new Types.ObjectId(id) })
       .sort({ startAt: 1, createdAt: 1 })
@@ -99,6 +104,8 @@ export class CampaignsService {
   async create(actor: Actor, dto: CreateCampaignDto): Promise<CampaignDetail> {
     const title = dto.title.trim();
     if (!title) throw new BadRequestException('Title is required');
+    const objective = dto.objective.trim();
+    if (!objective) throw new BadRequestException('Program objective is required');
     if (dto.type === 'linked' && dto.linkedSequence?.some((s) => !s.title?.trim())) {
       throw new BadRequestException('Each linked step requires a title');
     }
@@ -154,6 +161,10 @@ export class CampaignsService {
       orgId: new Types.ObjectId(actor.orgId),
       title,
       type: dto.type,
+      objective,
+      background: trimOrNull(dto.background),
+      targetAudience: trimOrNull(dto.targetAudience),
+      intendedDecision: trimOrNull(dto.intendedDecision),
       status: 'draft',
       startAt: dto.startAt ? new Date(dto.startAt) : null,
       endAt: dto.endAt ? new Date(dto.endAt) : null,
@@ -229,7 +240,7 @@ export class CampaignsService {
     dto: UpdateCampaignDto,
   ): Promise<CampaignDetail> {
     const updates: Record<string, unknown> = {};
-    if (dto.title !== undefined) updates.title = dto.title.trim() || 'Untitled campaign';
+    if (dto.title !== undefined) updates.title = dto.title.trim() || 'Untitled program';
     if (dto.cadence !== undefined) updates.cadence = dto.cadence;
     if (dto.recurringMode !== undefined) updates.recurringMode = dto.recurringMode;
     if (dto.masterPrompt !== undefined) updates.masterPrompt = dto.masterPrompt;
@@ -256,7 +267,7 @@ export class CampaignsService {
         { new: true },
       )
       .lean();
-    if (!doc) throw new NotFoundException('Campaign not found');
+    if (!doc) throw new NotFoundException('Program not found');
     return this.getOne(orgId, id);
   }
 
@@ -270,7 +281,7 @@ export class CampaignsService {
       throw new BadRequestException('Title is required before launch');
     }
     if (detail.sessionsTotal < 1) {
-      throw new BadRequestException('Campaign has no sessions to launch');
+      throw new BadRequestException('Program has no sessions to launch');
     }
 
     const startAt = dto.startAt ?? detail.startAt ?? new Date().toISOString();
@@ -363,6 +374,10 @@ export class CampaignsService {
       orgId: String(d.orgId),
       title: String(d.title),
       type: d.type as CampaignDto['type'],
+      objective: (d.objective as string | null) ?? null,
+      background: (d.background as string | null) ?? null,
+      targetAudience: (d.targetAudience as string | null) ?? null,
+      intendedDecision: (d.intendedDecision as string | null) ?? null,
       status: deriveScheduleStatus(
         d.startAt instanceof Date ? d.startAt.getTime() : null,
         d.endAt instanceof Date ? d.endAt.getTime() : null,
@@ -435,6 +450,9 @@ export class CampaignsService {
       },
       engagementMetrics: Array.isArray(d.engagementMetrics)
         ? (d.engagementMetrics as string[])
+        : [],
+      knowledgeCollectionIds: Array.isArray(d.knowledgeCollectionIds)
+        ? (d.knowledgeCollectionIds as string[])
         : [],
       createdAt,
       updatedAt,

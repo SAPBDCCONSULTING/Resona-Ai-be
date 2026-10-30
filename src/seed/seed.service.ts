@@ -2,7 +2,6 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
-import type { PermissionKey } from '@pulsefeedback/shared';
 import {
   Organization,
   OrganizationDocument,
@@ -33,44 +32,9 @@ import {
   SYSTEM_SESSION_TEMPLATES,
   SYSTEM_TEMPLATE_METADATA_KEYS,
 } from '../templates/system-templates';
+import { ADMIN_PERMS, ANALYST_PERMS, EMPLOYEE_PERMS } from './role-permission-sets';
 
-const ADMIN_PERMS: PermissionKey[] = [
-  'org:read',
-  'org:write',
-  'users:read',
-  'users:write',
-  'roles:read',
-  'roles:write',
-  'contacts:read',
-  'contacts:write',
-  'contacts:import',
-  'sessions:read',
-  'sessions:write',
-  'sessions:launch',
-  'sessions:archive',
-  'campaigns:read',
-  'campaigns:write',
-  'templates:read',
-  'templates:write',
-  'reports:read',
-  'reports:export',
-  'ai:use',
-  'settings:read',
-  'settings:write',
-];
-
-/** Read-only dashboard role — used to prove 403 on sessions:write. */
-const ANALYST_PERMS: PermissionKey[] = [
-  'org:read',
-  'contacts:read',
-  'sessions:read',
-  'campaigns:read',
-  'templates:read',
-  'reports:read',
-  'settings:read',
-];
-
-const EMPLOYEE_PERMS: PermissionKey[] = ['sessions:read', 'responses:write'];
+export { ADMIN_PERMS, ANALYST_PERMS, EMPLOYEE_PERMS };
 
 const RESONAAI_PROFILE = {
   address: '1710 Greenwood Road, Pleasanton CA 94566',
@@ -128,7 +92,7 @@ export class SeedService implements OnModuleInit {
     const existing = resonaOrg ?? acmeOrg;
 
     if (existing) {
-      const orgId = existing._id as Types.ObjectId;
+      const orgId = existing._id;
       await this.migrateAcmeToResonaai(orgId);
 
       const profileSet: Record<string, unknown> = {
@@ -145,19 +109,25 @@ export class SeedService implements OnModuleInit {
         accentColor: existing.accentColor ?? RESONAAI_PROFILE.accentColor,
         accentSoft: existing.accentSoft ?? RESONAAI_PROFILE.accentSoft,
         tagline: existing.tagline ?? RESONAAI_PROFILE.tagline,
-        aiSystemPrompt: existing.aiSystemPrompt ?? RESONAAI_PROFILE.aiSystemPrompt,
-        blockedTopics:
-          existing.blockedTopics?.length
-            ? existing.blockedTopics
-            : RESONAAI_PROFILE.blockedTopics,
+        aiSystemPrompt:
+          existing.aiSystemPrompt ?? RESONAAI_PROFILE.aiSystemPrompt,
+        blockedTopics: existing.blockedTopics?.length
+          ? existing.blockedTopics
+          : RESONAAI_PROFILE.blockedTopics,
         piiRedactionEnabled:
           existing.piiRedactionEnabled ?? RESONAAI_PROFILE.piiRedactionEnabled,
         retentionDays: existing.retentionDays ?? RESONAAI_PROFILE.retentionDays,
-        archiveAfterDays: existing.archiveAfterDays ?? RESONAAI_PROFILE.archiveAfterDays,
-        softDeleteEnabled: existing.softDeleteEnabled ?? RESONAAI_PROFILE.softDeleteEnabled,
+        archiveAfterDays:
+          existing.archiveAfterDays ?? RESONAAI_PROFILE.archiveAfterDays,
+        softDeleteEnabled:
+          existing.softDeleteEnabled ?? RESONAAI_PROFILE.softDeleteEnabled,
       };
       // Only rename acme → resonaai when no resonaai org already exists
-      if (!resonaOrg && acmeOrg && String(existing._id) === String(acmeOrg._id)) {
+      if (
+        !resonaOrg &&
+        acmeOrg &&
+        String(existing._id) === String(acmeOrg._id)
+      ) {
         profileSet.slug = 'resonaai';
       }
 
@@ -177,7 +147,9 @@ export class SeedService implements OnModuleInit {
       await this.ensureDemoUsers(orgId);
       await this.ensureEmployeeAssignments(orgId);
       await this.ensureDemoCampaign(orgId);
-      this.logger.log('Seed skipped org create — ensured contacts/templates/users/campaigns/profile');
+      this.logger.log(
+        'Seed skipped org create — ensured contacts/templates/users/campaigns/profile',
+      );
       return;
     }
 
@@ -280,9 +252,21 @@ export class SeedService implements OnModuleInit {
   /** Rename legacy @acme.local demo accounts to @resonaai.local (idempotent). */
   private async migrateAcmeToResonaai(orgId: Types.ObjectId) {
     const renames: Array<{ from: string; to: string; name: string }> = [
-      { from: 'admin@acme.local', to: 'admin@resonaai.local', name: 'Resona Admin' },
-      { from: 'employee@acme.local', to: 'employee@resonaai.local', name: 'Resona Employee' },
-      { from: 'analyst@acme.local', to: 'analyst@resonaai.local', name: 'Resona Analyst' },
+      {
+        from: 'admin@acme.local',
+        to: 'admin@resonaai.local',
+        name: 'Resona Admin',
+      },
+      {
+        from: 'employee@acme.local',
+        to: 'employee@resonaai.local',
+        name: 'Resona Employee',
+      },
+      {
+        from: 'analyst@acme.local',
+        to: 'analyst@resonaai.local',
+        name: 'Resona Analyst',
+      },
     ];
     for (const { from, to, name } of renames) {
       // email is globally unique — don't scope by orgId
@@ -306,11 +290,15 @@ export class SeedService implements OnModuleInit {
       { $set: { name: 'Resona Admin' } },
     );
 
-    const legacyContacts = await this.contacts.find({ email: /@acme\.local$/i }).lean();
+    const legacyContacts = await this.contacts
+      .find({ email: /@acme\.local$/i })
+      .lean();
     for (const c of legacyContacts) {
-      const nextEmail = String(c.email).toLowerCase().replace(/@acme\.local$/i, '@resonaai.local');
+      const nextEmail = String(c.email)
+        .toLowerCase()
+        .replace(/@acme\.local$/i, '@resonaai.local');
       const clash = await this.contacts.findOne({
-        orgId: c.orgId ?? orgId,
+        orgId,
         email: nextEmail,
       });
       if (clash) {
@@ -378,7 +366,9 @@ export class SeedService implements OnModuleInit {
 
   /** Assign employee user to open sessions so Phase 2 take/submit works. */
   private async ensureEmployeeAssignments(orgId: Types.ObjectId) {
-    const employee = await this.users.findOne({ email: 'employee@resonaai.local' });
+    const employee = await this.users.findOne({
+      email: 'employee@resonaai.local',
+    });
     if (!employee) return;
 
     const userId = String(employee._id);

@@ -50,12 +50,7 @@ export class SessionTemplate {
   @Prop({ default: '' })
   description!: string;
 
-  @Prop({
-    type: String,
-    required: true,
-    enum: ['one_on_one', 'survey'],
-    index: true,
-  })
+  @Prop({ type: String, required: true, enum: ['one_on_one', 'survey'], index: true })
   sessionType!: SessionType;
 
   @Prop({ type: String, default: null })

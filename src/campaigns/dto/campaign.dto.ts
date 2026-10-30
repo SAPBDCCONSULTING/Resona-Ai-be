@@ -3,6 +3,7 @@ import {
   IsArray,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Max,
@@ -38,6 +39,26 @@ export class CreateCampaignDto {
 
   @IsEnum(['recurring', 'linked', 'independent'])
   type!: CampaignType;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  objective!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  background?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  targetAudience?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  intendedDecision?: string | null;
 
   @IsOptional()
   @IsString()

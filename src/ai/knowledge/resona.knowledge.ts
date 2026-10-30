@@ -3,11 +3,10 @@
  * Keep entries short and factual. Tag surfaces that should see each article.
  */
 
-export type KbSurface =
-  | 'describe' // HR Describe Session coach (S2)
-  | 'assistant' // Global dashboard AI assistant
-  | 'employee_discussion' // Employee 1:1 facilitator
-  | 'topics'; // Topic generation
+import type { KbSurface } from '@pulsefeedback/shared';
+
+/** Re-exported so existing `import { type KbSurface } from './resona.knowledge'` call sites keep working unchanged. */
+export type { KbSurface };
 
 export type KbArticle = {
   id: string;
@@ -24,7 +23,7 @@ export const RESONA_KNOWLEDGE_BASE: KbArticle[] = [
     title: 'What Resona AI is',
     surfaces: ['assistant', 'describe'],
     keywords: ['resona', 'what is', 'product', 'platform', 'feedback'],
-    body: `Resona AI is an HR feedback platform. Leaders create Sessions (1:1 discussions or surveys), invite employees, collect responses, and review progress on a board. Campaigns can group multiple sessions. There are no Focus Groups in this product.`,
+    body: `Resona AI is an HR feedback platform. Leaders create Sessions (1:1 discussions or surveys), invite employees, collect responses, and review progress on a board. Programs can group multiple sessions. There are no Focus Groups in this product.`,
   },
   {
     id: 'session-types',
@@ -42,12 +41,26 @@ Never suggest Focus Groups.`,
     surfaces: ['assistant', 'describe'],
     keywords: ['wizard', 'create', 'steps', 'describe', 'verify', 'launch', 'participants'],
     body: `Session creation wizard:
-S1 Choose type — 1:1 or Survey (Quick create / Ask the guide shortcuts exist)
+S1 Choose type — 1:1 or Survey. Quick create copies an existing session's configuration (goal, tone, topics, report template, invite/welcome copy) into the new draft for editing on Verify — it does not change the source session, and does not copy participants. Ask the guide shortcut is also available.
 S2 Describe — Duration + Select Template + prompt → Submit → Conversation coach → topics
 S3 Verify & Customize — admin/participant titles, topic pills, metrics, invite email, welcome message
 S4 Select Participants — database, groups, or CSV upload
 S5 Build Reports — pick or skip a report template
 S6 Schedule & Launch — checklist, anonymous toggle, Launch Now or schedule dates`,
+  },
+  {
+    // Grounded directly in schemas/report-template.schema.ts's `kind` enum and
+    // the seeded report templates — do not add kinds beyond what the schema supports.
+    id: 'build-reports',
+    title: 'Build Reports step (S5)',
+    surfaces: ['assistant', 'describe'],
+    keywords: ['report', 'reports', 'build reports', 'summary', 'themes', 'scores', 'template', 'kind'],
+    body: `S5 Build Reports lets HR attach a report template to the session, or skip it — attaching one is optional.
+A report template has a kind: summary, themes, scores, or custom.
+- summary — a high-level write-up with themes, quotes, and recommended actions.
+- themes — clustered themes with frequency and sentiment.
+- scores — numeric scores and trend-ready metrics (used for surveys).
+- custom — an org-defined report shape.`,
   },
   {
     id: 'session-lifecycle',
@@ -64,9 +77,10 @@ Soft-activate flips scheduled → ongoing when startAt is reached.`,
     surfaces: ['describe'],
     keywords: ['goal', 'tone', 'team', 'topics', 'duration', 'template'],
     body: `You help HR design ONE session.
-Collect only missing fields, one question at a time: goal → team size → tone (supportive|neutral|direct) → optional focus.
+Required, one question at a time, in order: goal → team size → tone (supportive|neutral|direct) → optional focus.
 Duration options map to topic counts: 10–15 min≈3, 20–30≈5, 30–45≈6.
 Templates (session-templates API) can seed goal + topics.
+If the user volunteers topics to avoid, or desired outputs (e.g. a summary, specific metrics), acknowledge and retain them in the draft — these are optional context, never a required question, and never block readiness.
 When goal + team size + tone exist: readyToGenerate=true, one short “All set — Continue” line, empty suggestions. Never loop summaries.`,
   },
   {
@@ -96,22 +110,22 @@ On agenda complete, summaries become the Response and board progress updates.`,
     id: 'participants-contacts',
     title: 'Participants & contacts',
     surfaces: ['assistant'],
-    keywords: ['participant', 'contact', 'invite', 'audience', 'anonymous'],
-    body: `People come from Contacts. Audience under 5 weakens anonymity and themes. Anonymous mode hides names in views when enabled at launch.`,
+    keywords: ['participant', 'contact', 'invite', 'audience', 'anonymous', 'group', 'groups', 'csv', 'database'],
+    body: `People come from Contacts, selected three ways on Select Participants: searching the contacts database, filtering by group, or importing a CSV. Audience under 5 weakens anonymity and themes. Anonymous mode hides names in views when enabled at launch.`,
   },
   {
     id: 'campaigns',
-    title: 'Campaigns',
+    title: 'Programs',
     surfaces: ['assistant'],
-    keywords: ['campaign', 'recurring', 'linked', 'independent'],
-    body: `Campaigns orchestrate sessions: independent, linked, or recurring. They are not a session type. Open Campaigns in the sidebar.`,
+    keywords: ['program', 'programs', 'campaign', 'recurring', 'linked', 'independent'],
+    body: `Programs orchestrate sessions: independent, linked, or recurring. They are not a session type. Open Programs in the sidebar.`,
   },
   {
     id: 'navigation',
     title: 'Dashboard navigation',
     surfaces: ['assistant'],
     keywords: ['where', 'how do i', 'settings', 'templates', 'contacts', 'sidebar'],
-    body: `Sidebar: Today, Sessions, Campaigns, Contacts, Templates, Settings.
+    body: `Sidebar: Today, Sessions, Programs, Contacts, Templates, Settings.
 Create session: Sessions → New. Templates stores session outlines and report templates. Settings holds org profile, users, roles, AI guardrails.`,
   },
   {

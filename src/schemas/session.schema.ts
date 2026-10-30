@@ -55,12 +55,7 @@ export class Session {
   title!: string;
 
   /** one_on_one | survey only — never focus_group */
-  @Prop({
-    type: String,
-    required: true,
-    enum: ['one_on_one', 'survey'],
-    index: true,
-  })
+  @Prop({ type: String, required: true, enum: ['one_on_one', 'survey'], index: true })
   type!: SessionType;
 
   @Prop({
@@ -157,6 +152,16 @@ export class Session {
 
   @Prop({ type: [String], default: [] })
   engagementMetrics!: string[];
+
+  /**
+   * Knowledge Base collection ids (KnowledgeCollectionEntity._id, as plain
+   * strings — same convention as participantIds/reportTemplateId) the
+   * Describe Session AI coach/topic-generation scopes its retrieval to.
+   * Empty = unscoped (pre-existing default behavior). Never read by the
+   * live employee_discussion facilitator.
+   */
+  @Prop({ type: [String], default: [] })
+  knowledgeCollectionIds!: string[];
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);
@@ -190,11 +195,7 @@ export class Campaign {
   @Prop({ required: true })
   title!: string;
 
-  @Prop({
-    type: String,
-    required: true,
-    enum: ['recurring', 'linked', 'independent'],
-  })
+  @Prop({ type: String, required: true, enum: ['recurring', 'linked', 'independent'] })
   type!: CampaignType;
 
   @Prop({
@@ -219,6 +220,19 @@ export class Campaign {
 
   @Prop({ type: String, default: null })
   cadence!: string | null;
+
+  /** Campaign context. Null on campaigns created before these fields existed. */
+  @Prop({ type: String, default: null })
+  objective!: string | null;
+
+  @Prop({ type: String, default: null })
+  background!: string | null;
+
+  @Prop({ type: String, default: null })
+  targetAudience!: string | null;
+
+  @Prop({ type: String, default: null })
+  intendedDecision!: string | null;
 
   /** Only meaningful when type === 'recurring'. */
   @Prop({ type: String, enum: ['unlinked', 'linked'], default: null })

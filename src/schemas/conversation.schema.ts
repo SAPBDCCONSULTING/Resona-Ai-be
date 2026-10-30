@@ -5,7 +5,7 @@ export type ConversationDocument = HydratedDocument<Conversation>;
 
 @Schema({ _id: false })
 class ConversationMessage {
-  @Prop({ required: true, enum: ['user', 'assistant'] })
+  @Prop({ type: String, required: true, enum: ['user', 'assistant'] })
   role!: 'user' | 'assistant';
 
   @Prop({ required: true, trim: true })
