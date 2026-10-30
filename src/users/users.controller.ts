@@ -13,6 +13,7 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../auth/permissions.guard';
+import type { Caller } from '../roles/role-authority.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { UsersService } from './users.service';
 
@@ -23,17 +24,24 @@ export class UsersController {
 
   @Get()
   @RequirePermissions('users:read')
-  list(@Req() req: Request & { user: { orgId: string } }) {
-    return this.users.list(req.user.orgId);
+  list(@Req() req: Request & { user: Caller }) {
+    return this.users.list(req.user);
+  }
+
+  /** Roles the caller is allowed to assign (org-scoped, within their own authority). */
+  @Get('assignable-roles')
+  @RequirePermissions('users:write')
+  assignableRoles(@Req() req: Request & { user: Caller }) {
+    return this.users.assignableRoles(req.user);
   }
 
   @Patch(':id/role')
   @RequirePermissions('users:write')
   assignRole(
-    @Req() req: Request & { user: { orgId: string } },
+    @Req() req: Request & { user: Caller },
     @Param('id') id: string,
     @Body() dto: AssignRoleDto,
   ) {
-    return this.users.assignRole(req.user.orgId, id, dto.roleId);
+    return this.users.assignRole(req.user, id, dto.roleId);
   }
 }

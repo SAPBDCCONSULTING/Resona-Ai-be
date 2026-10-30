@@ -22,6 +22,7 @@ export class RolesService {
         orgId: String(d.orgId),
         name: d.name,
         permissions: d.permissions ?? [],
+        kind: d.kind === 'custom' ? ('custom' as const) : ('system' as const),
       })),
     };
   }

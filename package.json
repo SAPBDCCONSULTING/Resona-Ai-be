@@ -12,6 +12,10 @@
     "start:prod": "node dist/src/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "rbac:bootstrap-owner": "ts-node --transpile-only src/cli/bootstrap-owner.ts",
+    "seed:dev-users": "ts-node --transpile-only src/cli/seed-dev-users.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "migrate:kb-permissions": "ts-node src/seed/backfill-kb-permissions.ts"
