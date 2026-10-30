@@ -67,9 +67,11 @@ describe('legacy permission enforcement is unchanged', () => {
         'sessions:read': 2,
         'sessions:write': 2,
       },
+      // Session templates add GET /session-templates/:id (read), PATCH /session-templates/:id and
+      // POST /session-templates/:id/duplicate (write).
       'templates/templates.controller.ts': {
-        'templates:read': 2,
-        'templates:write': 1,
+        'templates:read': 3,
+        'templates:write': 3,
       },
       // Stage 5 adds GET /users/assignable-roles (users:write); the other two are unchanged.
       'users/users.controller.ts': { 'users:read': 1, 'users:write': 2 },
