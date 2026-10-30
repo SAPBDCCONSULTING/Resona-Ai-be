@@ -185,10 +185,23 @@ export interface SessionProgress {
   health: HealthStatus;
 }
 
+/** Answer format for a survey question (topic). 1:1 topics leave this unset. */
+export const SURVEY_RESPONSE_TYPES = [
+  'scale',
+  'multiple_choice',
+  'text',
+  'yes_no',
+] as const;
+export type SurveyResponseType = (typeof SURVEY_RESPONSE_TYPES)[number];
+
 export interface SessionTopic {
   id: string;
   title: string;
   order: number;
+  /** Survey questions only; optional for backward compatibility. */
+  responseType?: SurveyResponseType;
+  /** Choices for `multiple_choice`, or scale labels (low → high) for `scale`. */
+  options?: string[];
 }
 
 export interface SessionInvitation {
@@ -361,6 +374,22 @@ export interface CampaignDetail extends Campaign {
   sessions: FeedbackSession[];
 }
 
+/** system = built-in (read-only), organization = shared in org, private = creator only. */
+export const SESSION_TEMPLATE_VISIBILITIES = [
+  'system',
+  'organization',
+  'private',
+] as const;
+export type SessionTemplateVisibility =
+  (typeof SESSION_TEMPLATE_VISIBILITIES)[number];
+
+export const SESSION_TEMPLATE_STATUSES = [
+  'draft',
+  'published',
+  'archived',
+] as const;
+export type SessionTemplateStatus = (typeof SESSION_TEMPLATE_STATUSES)[number];
+
 /** Reusable survey / 1:1 outline (topics + goal), distinct from report templates. */
 export interface SessionTemplate {
   id: string;
@@ -372,6 +401,25 @@ export interface SessionTemplate {
   topics: SessionTopic[];
   tone: string | null;
   createdAt: string;
+
+  // Metadata — optional so older clients keep compiling.
+  category?: string;
+  tags?: string[];
+  audience?: string;
+  estimatedDurationMinutes?: number;
+  visibility?: SessionTemplateVisibility;
+  /** User id of the creator; null for system templates. */
+  createdBy?: string | null;
+  updatedAt?: string;
+  version?: number;
+  status?: SessionTemplateStatus;
+  rolloutSuggestion?: string;
+  /** Themed pack, e.g. "Core" or "Wellbeing & Retention Pack". */
+  pack?: string | null;
+  /** Template this one was duplicated from, if any. */
+  sourceTemplateId?: string | null;
+  /** True for system templates — duplicate them to customize. */
+  readOnly?: boolean;
 }
 
 export interface CreateSessionTemplateInput {
@@ -381,6 +429,29 @@ export interface CreateSessionTemplateInput {
   goalPrompt?: string | null;
   topics?: SessionTopic[];
   tone?: string | null;
+
+  category?: string;
+  tags?: string[];
+  audience?: string;
+  estimatedDurationMinutes?: number;
+  /** `system` is reserved for built-in templates. */
+  visibility?: Exclude<SessionTemplateVisibility, 'system'>;
+  /** Defaults to `published` so new outlines show up in the wizard immediately. */
+  status?: Exclude<SessionTemplateStatus, 'archived'>;
+  rolloutSuggestion?: string;
+}
+
+/** Partial update of an org/private template. System templates are read-only. */
+export type UpdateSessionTemplateInput = Partial<
+  Omit<CreateSessionTemplateInput, 'status'>
+> & { status?: SessionTemplateStatus };
+
+/** Copy any visible template (including system ones) into the caller's org. */
+export interface DuplicateSessionTemplateInput {
+  name?: string;
+  visibility?: Exclude<SessionTemplateVisibility, 'system'>;
+  /** Copies start as `draft` so they can be customized before use. */
+  status?: Exclude<SessionTemplateStatus, 'archived'>;
 }
 
 export interface CursorPage<T> {

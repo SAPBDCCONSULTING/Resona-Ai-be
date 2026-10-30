@@ -1,11 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import type {
-  CampaignRecurringMode,
-  CampaignType,
-  HealthStatus,
-  SessionStatus,
-  SessionType,
+import {
+  SURVEY_RESPONSE_TYPES,
+  type CampaignRecurringMode,
+  type CampaignType,
+  type HealthStatus,
+  type SessionStatus,
+  type SessionType,
+  type SurveyResponseType,
 } from '@pulsefeedback/shared';
 
 export type SessionDocument = HydratedDocument<Session>;
@@ -21,7 +23,7 @@ class Progress {
   @Prop({ default: 0 })
   percent!: number;
 
-  @Prop({ default: 'no_schedule' })
+  @Prop({ type: String, default: 'no_schedule' })
   health!: HealthStatus;
 }
 
@@ -35,6 +37,13 @@ class Topic {
 
   @Prop({ default: 0 })
   order!: number;
+
+  /** Survey questions only (copied from session templates). */
+  @Prop({ type: String, enum: [...SURVEY_RESPONSE_TYPES], default: undefined })
+  responseType?: SurveyResponseType;
+
+  @Prop({ type: [String], default: undefined })
+  options?: string[];
 }
 
 @Schema({ timestamps: true, collection: 'sessions' })
@@ -46,10 +55,16 @@ export class Session {
   title!: string;
 
   /** one_on_one | survey only — never focus_group */
-  @Prop({ required: true, enum: ['one_on_one', 'survey'], index: true })
+  @Prop({
+    type: String,
+    required: true,
+    enum: ['one_on_one', 'survey'],
+    index: true,
+  })
   type!: SessionType;
 
   @Prop({
+    type: String,
     required: true,
     enum: ['draft', 'scheduled', 'ongoing', 'completed', 'archived'],
     default: 'draft',
@@ -175,10 +190,15 @@ export class Campaign {
   @Prop({ required: true })
   title!: string;
 
-  @Prop({ required: true, enum: ['recurring', 'linked', 'independent'] })
+  @Prop({
+    type: String,
+    required: true,
+    enum: ['recurring', 'linked', 'independent'],
+  })
   type!: CampaignType;
 
   @Prop({
+    type: String,
     required: true,
     enum: ['draft', 'scheduled', 'ongoing', 'completed', 'archived'],
     default: 'draft',
@@ -224,7 +244,7 @@ export class Campaign {
   @Prop({ default: 0 })
   percent!: number;
 
-  @Prop({ default: 'no_schedule' })
+  @Prop({ type: String, default: 'no_schedule' })
   health!: HealthStatus;
 }
 

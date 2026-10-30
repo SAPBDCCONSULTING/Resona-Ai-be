@@ -29,6 +29,10 @@ import {
   SessionTemplate,
   SessionTemplateDocument,
 } from '../schemas/session-template.schema';
+import {
+  SYSTEM_SESSION_TEMPLATES,
+  SYSTEM_TEMPLATE_METADATA_KEYS,
+} from '../templates/system-templates';
 
 const ADMIN_PERMS: PermissionKey[] = [
   'org:read',
@@ -452,52 +456,55 @@ export class SeedService implements OnModuleInit {
     ]);
   }
 
+  /**
+   * Seeds the built-in templates (see system-templates.ts). Safe to re-run:
+   * a template is only inserted when no system template with that name
+   * exists, and existing templates only get metadata fields they lack —
+   * values already stored (including edits) are never overwritten.
+   */
   private async ensureSessionOutlineTemplates() {
-    const count = await this.sessionTemplates.countDocuments({ orgId: null });
-    if (count > 0) return;
-    await this.sessionTemplates.insertMany([
-      {
+    let inserted = 0;
+    let backfilled = 0;
+    for (const tpl of SYSTEM_SESSION_TEMPLATES) {
+      const doc = {
+        ...tpl,
         orgId: null,
-        name: 'Manager 1:1 outline',
-        description:
-          'Classic bi-weekly check-in covering wins, blockers, and growth.',
-        sessionType: 'one_on_one',
-        goalPrompt: 'Build trust and surface blockers in a private 1:1.',
-        tone: 'supportive',
-        topics: [
-          { id: 't1', title: 'Wins since last time', order: 1 },
-          { id: 't2', title: 'Blockers & support needed', order: 2 },
-          { id: 't3', title: 'Career / growth', order: 3 },
-        ],
-      },
-      {
-        orgId: null,
-        name: 'Engagement pulse survey',
-        description:
-          'Short recurring survey for loyalty, clarity, and workload.',
-        sessionType: 'survey',
-        goalPrompt: 'Track engagement trends across the org each quarter.',
-        tone: 'neutral',
-        topics: [
-          { id: 't1', title: 'Clarity of priorities', order: 1 },
-          { id: 't2', title: 'Workload balance', order: 2 },
-          { id: 't3', title: 'Likelihood to recommend', order: 3 },
-        ],
-      },
-      {
-        orgId: null,
-        name: 'Onboarding check-in',
-        description: '30/60/90 day 1:1 for new hires.',
-        sessionType: 'one_on_one',
-        goalPrompt: 'Understand belonging and support in the first 90 days.',
-        tone: 'warm',
-        topics: [
-          { id: 't1', title: 'First impressions', order: 1 },
-          { id: 't2', title: 'Tools & enablement', order: 2 },
-          { id: 't3', title: 'Belonging', order: 3 },
-        ],
-      },
-    ]);
+        visibility: 'system' as const,
+        createdBy: null,
+        version: 1,
+      };
+      const res = await this.sessionTemplates.updateOne(
+        { orgId: null, name: tpl.name },
+        { $setOnInsert: doc },
+        { upsert: true },
+      );
+      if (res.upsertedCount > 0) {
+        inserted++;
+        continue;
+      }
+
+      const existing = await this.sessionTemplates
+        .findOne({ orgId: null, name: tpl.name })
+        .lean();
+      if (!existing) continue;
+      const missing: Record<string, unknown> = {};
+      for (const key of SYSTEM_TEMPLATE_METADATA_KEYS) {
+        if ((existing as Record<string, unknown>)[key] === undefined) {
+          missing[key] = doc[key];
+        }
+      }
+      if (Object.keys(missing).length === 0) continue;
+      await this.sessionTemplates.updateOne(
+        { _id: existing._id },
+        { $set: missing },
+      );
+      backfilled++;
+    }
+    if (inserted || backfilled) {
+      this.logger.log(
+        `Session templates: ${inserted} inserted, ${backfilled} backfilled with metadata`,
+      );
+    }
   }
 
   /** Phase 3 exit: one recurring campaign with 3 sessions on the board. */
@@ -511,9 +518,10 @@ export class SeedService implements OnModuleInit {
     const admin = await this.users.findOne({ email: 'admin@resonaai.local' });
     if (!admin) return;
 
+    // 'Engagement pulse survey' is the pre-v2 name kept in older databases.
     const surveyTpl = await this.sessionTemplates.findOne({
       orgId: null,
-      name: 'Engagement pulse survey',
+      name: { $in: ['Employee Engagement Pulse', 'Engagement pulse survey'] },
     });
 
     const campaign = await this.campaigns.create({
