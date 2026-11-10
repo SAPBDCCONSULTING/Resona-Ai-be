@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsInt,
@@ -89,6 +90,14 @@ export class CreateCampaignDto {
   @Min(1)
   @Max(12)
   sessionCount?: number;
+
+  /** Independent only: one name per child session, in order. Must match sessionCount. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  sessionTitles?: string[];
 
   @IsOptional()
   @IsEnum(['one_on_one', 'survey'])
