@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -61,6 +62,8 @@ export type Actor = {
 
 @Injectable()
 export class CampaignsService {
+  private readonly logger = new Logger(CampaignsService.name);
+
   constructor(
     @InjectModel(Campaign.name) private readonly campaigns: Model<CampaignDocument>,
     @InjectModel(Session.name) private readonly sessions: Model<SessionDocument>,
@@ -109,10 +112,25 @@ export class CampaignsService {
       throw new BadRequestException('Each linked step requires a title');
     }
 
+    const sessionTitles =
+      dto.type === 'independent' && dto.sessionTitles
+        ? dto.sessionTitles.map((t) => t.trim())
+        : null;
+    if (sessionTitles) {
+      if (sessionTitles.some((t) => !t)) {
+        throw new BadRequestException('Each session requires a name');
+      }
+      if (dto.sessionCount !== undefined && dto.sessionCount !== sessionTitles.length) {
+        throw new BadRequestException('Session names must match the number of sessions');
+      }
+    }
+
     const sessionCount =
       dto.type === 'linked' && dto.linkedSequence?.length
         ? dto.linkedSequence.length
-        : (dto.sessionCount ?? (dto.type === 'recurring' ? 3 : dto.type === 'linked' ? 2 : 1));
+        : (sessionTitles?.length ??
+          dto.sessionCount ??
+          (dto.type === 'recurring' ? 3 : dto.type === 'linked' ? 2 : 1));
     const sessionType: SessionType = dto.sessionType ?? 'survey';
 
     let topics: SessionTopic[] = [];
@@ -182,11 +200,15 @@ export class CampaignsService {
     const sessionDocs = [];
 
     for (let i = 0; i < sessionCount; i++) {
-      const startAt = new Date(baseStart.getTime() + i * windowMs);
+      // Independent sessions run side by side in the same window; others are staggered.
+      const slot = dto.type === 'independent' ? 0 : i;
+      const startAt = new Date(baseStart.getTime() + slot * windowMs);
       const endAt = new Date(startAt.getTime() + windowMs - 24 * 60 * 60 * 1000);
       const linkedStep = linkedSteps[i];
       const label =
-        dto.type === 'recurring'
+        sessionTitles
+          ? sessionTitles[i]
+          : dto.type === 'recurring'
           ? `${title} — Round ${i + 1}`
           : linkedStep
             ? `${title} — ${linkedStep.title}`
@@ -221,12 +243,29 @@ export class CampaignsService {
       });
     }
 
-    if (sessionDocs.length) {
-      await this.sessions.insertMany(sessionDocs);
+    // Single-node Mongo has no transactions: undo the parent and any children on failure.
+    try {
+      if (sessionDocs.length) {
+        await this.sessions.insertMany(sessionDocs);
+      }
+      await this.recomputeRollup(actor.orgId, String(campaign._id));
+    } catch (err) {
+      await this.rollbackCreate(actor.orgId, campaign._id);
+      throw err;
     }
-
-    await this.recomputeRollup(actor.orgId, String(campaign._id));
     return this.getOne(actor.orgId, String(campaign._id));
+  }
+
+  private async rollbackCreate(orgId: string, campaignId: Types.ObjectId): Promise<void> {
+    const org = new Types.ObjectId(orgId);
+    try {
+      await this.sessions.deleteMany({ orgId: org, campaignId });
+      await this.campaigns.deleteOne({ _id: campaignId, orgId: org });
+    } catch (cleanupErr) {
+      this.logger.error(
+        `Failed to roll back program ${String(campaignId)}: ${String(cleanupErr)}`,
+      );
+    }
   }
 
   async update(
@@ -317,14 +356,16 @@ export class CampaignsService {
     const windowMs = 14 * 24 * 60 * 60 * 1000;
     for (let i = 0; i < childSessions.length; i++) {
       const s = childSessions[i];
-      const sStart = new Date(base + i * windowMs);
+      // Independent sessions run side by side, so each takes the first slot.
+      const slot = detail.type === 'independent' ? 0 : i;
+      const sStart = new Date(base + slot * windowMs);
       const sEnd = new Date(sStart.getTime() + windowMs - 24 * 60 * 60 * 1000);
-      s.status = i === 0 && launchStatus !== 'scheduled' ? 'ongoing' : 'scheduled';
+      s.status = slot === 0 && launchStatus !== 'scheduled' ? 'ongoing' : 'scheduled';
       s.startAt = sStart;
       s.endAt = sEnd;
       s.progress = {
         ...s.progress,
-        health: i === 0 ? 'on_track' : 'no_schedule',
+        health: slot === 0 ? 'on_track' : 'no_schedule',
       };
       await s.save();
     }
