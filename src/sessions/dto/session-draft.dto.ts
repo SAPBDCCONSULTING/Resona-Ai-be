@@ -3,6 +3,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsMongoId,
   IsOptional,
   IsString,
@@ -10,11 +11,13 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type {
-  CreateEntryMode,
-  SessionStatus,
-  SessionType,
-  WizardStep,
+import {
+  SURVEY_RESPONSE_TYPES,
+  type CreateEntryMode,
+  type SessionStatus,
+  type SessionType,
+  type SurveyResponseType,
+  type WizardStep,
 } from '@pulsefeedback/shared';
 
 export class CreateDraftDto {
@@ -58,6 +61,18 @@ class TopicDto {
 
   @IsOptional()
   order?: number;
+
+  /** Survey questions only — sent when a session starts from a template. */
+  @IsOptional()
+  @IsIn(SURVEY_RESPONSE_TYPES)
+  responseType?: SurveyResponseType;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  options?: string[];
 }
 
 class InvitationDto {

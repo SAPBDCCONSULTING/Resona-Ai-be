@@ -25,6 +25,7 @@ import {
   SessionTemplate,
   SessionTemplateDocument,
 } from '../schemas/session-template.schema';
+import { sessionTemplateAccessFilter } from '../templates/templates.service';
 import {
   CreateCampaignDto,
   LaunchCampaignDto,
@@ -123,8 +124,10 @@ export class CampaignsService {
     if (dto.sessionTemplateId) {
       const tpl = await this.templates
         .findOne({
-          _id: dto.sessionTemplateId,
-          $or: [{ orgId: null }, { orgId: new Types.ObjectId(actor.orgId) }],
+          $and: [
+            { _id: dto.sessionTemplateId, status: { $ne: 'archived' } },
+            sessionTemplateAccessFilter(actor),
+          ],
         })
         .lean();
       if (!tpl) throw new NotFoundException('Session template not found');
@@ -133,6 +136,8 @@ export class CampaignsService {
             id: t.id || `t${i + 1}`,
             title: t.title,
             order: t.order ?? i + 1,
+            ...(t.responseType ? { responseType: t.responseType } : {}),
+            ...(t.options?.length ? { options: t.options } : {}),
           }))
         : [];
       goalPrompt = (tpl.goalPrompt as string | null) ?? null;

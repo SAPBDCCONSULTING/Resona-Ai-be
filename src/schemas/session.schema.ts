@@ -1,11 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import type {
-  CampaignRecurringMode,
-  CampaignType,
-  HealthStatus,
-  SessionStatus,
-  SessionType,
+import {
+  SURVEY_RESPONSE_TYPES,
+  type CampaignRecurringMode,
+  type CampaignType,
+  type HealthStatus,
+  type SessionStatus,
+  type SessionType,
+  type SurveyResponseType,
 } from '@pulsefeedback/shared';
 
 export type SessionDocument = HydratedDocument<Session>;
@@ -35,6 +37,13 @@ class Topic {
 
   @Prop({ default: 0 })
   order!: number;
+
+  /** Survey questions only (copied from session templates). */
+  @Prop({ type: String, enum: [...SURVEY_RESPONSE_TYPES], default: undefined })
+  responseType?: SurveyResponseType;
+
+  @Prop({ type: [String], default: undefined })
+  options?: string[];
 }
 
 @Schema({ timestamps: true, collection: 'sessions' })

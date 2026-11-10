@@ -2,20 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import {
-  IsArray,
-  IsEnum,
-  IsOptional,
-  IsString,
-  MaxLength,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
 import type { Request } from 'express';
 import type { SessionType } from '@pulsefeedback/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -23,49 +16,15 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../auth/permissions.guard';
+import {
+  CreateSessionTemplateDto,
+  DuplicateSessionTemplateDto,
+  ListSessionTemplatesQueryDto,
+  UpdateSessionTemplateDto,
+} from './dto/session-template.dto';
 import { TemplatesService } from './templates.service';
 
-class TopicDto {
-  @IsString()
-  id!: string;
-
-  @IsString()
-  @MaxLength(300)
-  title!: string;
-
-  @IsOptional()
-  order?: number;
-}
-
-class CreateSessionTemplateDto {
-  @IsString()
-  @MaxLength(200)
-  name!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  description?: string;
-
-  @IsEnum(['one_on_one', 'survey'])
-  sessionType!: SessionType;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(4000)
-  goalPrompt?: string | null;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TopicDto)
-  topics?: TopicDto[];
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  tone?: string | null;
-}
+type AuthedRequest = Request & { user: { orgId: string; userId: string } };
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -75,34 +34,55 @@ export class TemplatesController {
   @Get('report-templates')
   @RequirePermissions('templates:read')
   listReportTemplates(
-    @Req() req: Request & { user: { orgId: string } },
+    @Req() req: AuthedRequest,
     @Query('sessionType') sessionType?: SessionType,
   ) {
     return this.templates.listReportTemplates(req.user.orgId, sessionType);
   }
 
+  /** Published templates by default; pass `status=draft|archived|all` for others. */
   @Get('session-templates')
   @RequirePermissions('templates:read')
   listSessionTemplates(
-    @Req() req: Request & { user: { orgId: string } },
-    @Query('sessionType') sessionType?: SessionType,
+    @Req() req: AuthedRequest,
+    @Query() query: ListSessionTemplatesQueryDto,
   ) {
-    return this.templates.listSessionTemplates(req.user.orgId, sessionType);
+    return this.templates.listSessionTemplates(req.user, query);
+  }
+
+  @Get('session-templates/:id')
+  @RequirePermissions('templates:read')
+  getSessionTemplate(@Req() req: AuthedRequest, @Param('id') id: string) {
+    return this.templates.getSessionTemplate(req.user, id);
   }
 
   @Post('session-templates')
   @RequirePermissions('templates:write')
   createSessionTemplate(
-    @Req() req: Request & { user: { orgId: string } },
+    @Req() req: AuthedRequest,
     @Body() dto: CreateSessionTemplateDto,
   ) {
-    return this.templates.createSessionTemplate(req.user.orgId, {
-      ...dto,
-      topics: dto.topics?.map((t, i) => ({
-        id: t.id,
-        title: t.title,
-        order: t.order ?? i + 1,
-      })),
-    });
+    return this.templates.createSessionTemplate(req.user, dto);
+  }
+
+  /** System templates are read-only (403) — duplicate them instead. */
+  @Patch('session-templates/:id')
+  @RequirePermissions('templates:write')
+  updateSessionTemplate(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateSessionTemplateDto,
+  ) {
+    return this.templates.updateSessionTemplate(req.user, id, dto);
+  }
+
+  @Post('session-templates/:id/duplicate')
+  @RequirePermissions('templates:write')
+  duplicateSessionTemplate(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+    @Body() dto: DuplicateSessionTemplateDto,
+  ) {
+    return this.templates.duplicateSessionTemplate(req.user, id, dto);
   }
 }
